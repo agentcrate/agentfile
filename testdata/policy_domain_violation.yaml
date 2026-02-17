@@ -23,7 +23,10 @@ skills:
     source: https://evil.example.com/v1
   - name: local-tool
     type: stdio
-    source: ./tools/local-server
+    command: npx
+    args:
+      - "-y"
+      - "@example/local-server"
 
 policies:
   allowed_domains:

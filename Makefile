@@ -1,6 +1,11 @@
 # Makefile for agentfile
 
-.PHONY: test lint clean coverage
+.PHONY: test lint clean coverage schema
+
+## schema: Regenerate JSON Schema from Go types
+schema:
+	@go run ./cmd/genschema > schema/agentfile-v1.json
+	@echo "schema/agentfile-v1.json regenerated"
 
 ## test: Run all tests
 test:

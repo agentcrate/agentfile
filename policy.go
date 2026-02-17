@@ -94,8 +94,8 @@ func CheckPolicies(af *Agentfile) *PolicyResult {
 
 	// Build skill name set for reference checks.
 	skillNames := make(map[string]bool, len(af.Skills))
-	for _, s := range af.Skills {
-		skillNames[s.Name] = true
+	for i := range af.Skills {
+		skillNames[af.Skills[i].Name] = true
 	}
 
 	// Check tool_permissions reference declared skills.
@@ -201,12 +201,12 @@ func checkAllowedDomains(af *Agentfile, result *PolicyResult) {
 		allowed[strings.ToLower(d)] = true
 	}
 
-	for i, s := range af.Skills {
+	for i := range af.Skills {
 		// Only check skills with network-accessible sources (http/sse types).
-		if s.Type != "http" && s.Type != "sse" {
+		if af.Skills[i].Type != "http" && af.Skills[i].Type != "sse" {
 			continue
 		}
-		host := extractHost(s.Source)
+		host := extractHost(af.Skills[i].Source)
 		if host == "" {
 			continue
 		}
@@ -216,7 +216,7 @@ func checkAllowedDomains(af *Agentfile, result *PolicyResult) {
 				Rule:     "domain-not-allowed",
 				Field:    fmt.Sprintf("skills[%d].source", i),
 				Message:  fmt.Sprintf("Skill source domain '%s' is not in allowed_domains", host),
-				Value:    s.Source,
+				Value:    af.Skills[i].Source,
 			})
 		}
 	}
