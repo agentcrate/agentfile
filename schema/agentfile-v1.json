@@ -1,31 +1,65 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentcrate.ai/schemas/agentfile-v1.json",
-  "title": "Agentfile v1",
-  "description": "Declarative specification for packaging AI agents with AgentCrate.",
-  "type": "object",
-  "required": [
-    "version",
-    "metadata",
-    "brain",
-    "persona"
-  ],
-  "additionalProperties": false,
-  "properties": {
-    "version": {
-      "type": "string",
-      "const": "1",
-      "description": "Schema version. Must be \"1\" for v1 Agentfiles."
-    },
-    "metadata": {
-      "type": "object",
-      "description": "Agent identity and discoverability information.",
-      "required": [
-        "name",
-        "version",
-        "description"
-      ],
+  "$defs": {
+    "Brain": {
+      "properties": {
+        "default": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+          "description": "Name of the model configuration to use by default. Must match a name in the models array."
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelConfig"
+          },
+          "type": "array",
+          "minItems": 1,
+          "description": "Array of model configurations. Each model has its own tuning parameters."
+        }
+      },
       "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "default",
+        "models"
+      ],
+      "description": "Brain defines model configurations and the active default."
+    },
+    "Build": {
+      "properties": {
+        "base_image": {
+          "type": "string",
+          "description": "Override the default base image (agentcrate/base:latest). Use a custom image with additional system dependencies or a private registry image."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "base_image"
+      ],
+      "description": "Build configures the container image build process."
+    },
+    "HITLRule": {
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Skill name that requires human approval."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition expression for when HITL is required (e.g., \"always\", \"cost \u003e 100\")."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "tool",
+        "condition"
+      ],
+      "description": "HITLRule defines a human-in-the-loop approval requirement."
+    },
+    "Metadata": {
       "properties": {
         "name": {
           "type": "string",
@@ -39,8 +73,8 @@
         },
         "description": {
           "type": "string",
-          "minLength": 1,
           "maxLength": 500,
+          "minLength": 1,
           "description": "Human-readable description of the agent."
         },
         "author": {
@@ -57,82 +91,64 @@
           "description": "Source repository URL."
         },
         "tags": {
-          "type": "array",
           "items": {
             "type": "string",
             "pattern": "^[a-z0-9-]{1,50}$"
           },
+          "type": "array",
           "maxItems": 20,
           "uniqueItems": true,
           "description": "Discovery tags for CrateHub."
         }
-      }
-    },
-    "brain": {
-      "type": "object",
-      "description": "Model configurations and inference parameters. Declares named model entries with per-model tuning; profiles switch the active model via default.",
-      "required": [
-        "default",
-        "models"
-      ],
+      },
       "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "description"
+      ],
+      "description": "Metadata contains agent identity and discoverability information."
+    },
+    "ModelConfig": {
       "properties": {
-        "default": {
+        "name": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-          "description": "Name of the model configuration to use by default. Must match a name in the models array."
+          "description": "Short identifier for this model configuration (e.g., sonnet, local, fast)."
         },
-        "models": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "object",
-            "required": [
-              "name",
-              "model"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-                "description": "Short identifier for this model configuration (e.g., sonnet, local, fast)."
-              },
-              "model": {
-                "type": "string",
-                "pattern": "^[a-z0-9-]+/[a-z0-9._-]+$",
-                "description": "Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3)."
-              },
-              "temperature": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 2,
-                "description": "Sampling temperature for this model."
-              },
-              "max_tokens": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Maximum tokens per response for this model."
-              },
-              "top_p": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1,
-                "description": "Top-p (nucleus) sampling parameter for this model."
-              }
-            }
-          },
-          "description": "Array of model configurations. Each model has its own tuning parameters. At build time, the provider set is derived from all declared models."
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[a-z0-9._-]+$",
+          "description": "Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3)."
+        },
+        "temperature": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0,
+          "description": "Sampling temperature for this model."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum tokens per response for this model."
+        },
+        "top_p": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "Top-p (nucleus) sampling parameter for this model."
         }
-      }
-    },
-    "persona": {
-      "type": "object",
-      "description": "Agent identity and behavioral framing.",
-      "required": [
-        "system_prompt"
-      ],
+      },
       "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "model"
+      ],
+      "description": "ModelConfig defines a named model with provider-qualified identifier and tuning."
+    },
+    "Persona": {
       "properties": {
         "system_prompt": {
           "type": "string",
@@ -147,119 +163,35 @@
           "type": "string",
           "description": "Role description (e.g., Code Reviewer, Research Assistant)."
         }
-      }
-    },
-    "skills": {
-      "type": "array",
-      "description": "Tools and capabilities available to the agent.",
-      "items": {
-        "type": "object",
-        "required": [
-          "name",
-          "type",
-          "source"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-            "description": "Unique skill identifier."
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "mcp",
-              "stdio",
-              "http",
-              "sse"
-            ],
-            "description": "Skill transport type. 'mcp' for registry tools, 'stdio' for local binaries, 'http' for Streamable HTTP endpoints, 'sse' for SSE endpoints."
-          },
-          "source": {
-            "type": "string",
-            "description": "Skill source. For mcp: registry identifier. For stdio: local path. For http/sse: endpoint URL."
-          },
-          "description": {
-            "type": "string",
-            "description": "Human-readable description of the skill."
-          },
-          "config": {
-            "type": "object",
-            "description": "Skill-specific configuration key-value pairs.",
-            "additionalProperties": true
-          }
-        }
-      }
-    },
-    "build": {
-      "type": "object",
-      "description": "Container image build configuration. Use this to customize how crate build produces agent images.",
+      },
       "additionalProperties": false,
-      "properties": {
-        "base_image": {
-          "type": "string",
-          "description": "Override the default base image (agentcrate/base:latest). Use a custom image with additional system dependencies or a private registry image."
-        }
-      }
-    },
-    "policies": {
       "type": "object",
-      "description": "Security constraints and governance rules.",
-      "additionalProperties": false,
+      "required": [
+        "system_prompt"
+      ],
+      "description": "Persona defines the agent's identity and behavioral framing."
+    },
+    "Policies": {
       "properties": {
         "allowed_domains": {
-          "type": "array",
           "items": {
             "type": "string"
           },
+          "type": "array",
           "description": "List of allowed network domains the agent can access."
         },
         "human_in_the_loop": {
-          "type": "array",
           "items": {
-            "type": "object",
-            "required": [
-              "tool",
-              "condition"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "tool": {
-                "type": "string",
-                "description": "Skill name that requires human approval."
-              },
-              "condition": {
-                "type": "string",
-                "description": "Condition expression for when HITL is required (e.g., 'always', 'cost > 100')."
-              }
-            }
+            "$ref": "#/$defs/HITLRule"
           },
+          "type": "array",
           "description": "Human-in-the-loop approval requirements."
         },
         "tool_permissions": {
-          "type": "array",
           "items": {
-            "type": "object",
-            "required": [
-              "skill",
-              "allow"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "skill": {
-                "type": "string",
-                "description": "Skill name to assign permissions to."
-              },
-              "allow": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "List of allowed operations for this skill."
-              }
-            }
+            "$ref": "#/$defs/ToolPermission"
           },
+          "type": "array",
           "description": "Fine-grained permissions per skill."
         },
         "max_tokens": {
@@ -272,36 +204,169 @@
           "minimum": 1,
           "description": "Maximum conversation turns per session."
         }
-      }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Policies defines security constraints and governance rules."
+    },
+    "Profile": {
+      "properties": {
+        "brain": {
+          "$ref": "#/$defs/ProfileBrain",
+          "description": "Profile brain override. Can only switch the active model via default."
+        },
+        "policies": {
+          "$ref": "#/$defs/Policies",
+          "description": "Profile-specific policy overrides."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Profile represents environment-specific configuration overrides (dev/staging/prod)."
+    },
+    "ProfileBrain": {
+      "properties": {
+        "default": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+          "description": "Name of the model configuration to activate for this profile. Must match a name in brain.models."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "default"
+      ],
+      "description": "ProfileBrain allows profile overrides to switch the active model."
+    },
+    "Skill": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "description": "Unique skill identifier."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "mcp",
+            "stdio",
+            "http",
+            "sse"
+          ],
+          "description": "Skill transport type. 'mcp' for registry tools, 'stdio' for local binaries, 'http' for Streamable HTTP endpoints, 'sse' for SSE endpoints."
+        },
+        "source": {
+          "type": "string",
+          "description": "Skill source. For mcp: registry skill name. For stdio: local binary path (if no command). For http/sse: endpoint URL."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the skill."
+        },
+        "config": {
+          "type": "object",
+          "description": "Skill-specific configuration key-value pairs."
+        },
+        "command": {
+          "type": "string",
+          "description": "Binary to execute for stdio skills (e.g., \"npx\"). If empty, source is used as the binary path."
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Arguments passed to command for stdio skills (e.g., [\"-y\", \"@modelcontextprotocol/server-everything\"])."
+        },
+        "env": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Required environment variables. The runtime validates these are set at startup."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "description": "Skill represents a tool or capability available to the agent."
+    },
+    "ToolPermission": {
+      "properties": {
+        "skill": {
+          "type": "string",
+          "description": "Skill name to assign permissions to."
+        },
+        "allow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of allowed operations for this skill."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "skill",
+        "allow"
+      ],
+      "description": "ToolPermission defines fine-grained permissions for a skill."
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1",
+      "description": "Schema version. Must be \"1\" for v1 Agentfiles."
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata",
+      "description": "Agent identity and discoverability information."
+    },
+    "brain": {
+      "$ref": "#/$defs/Brain",
+      "description": "Model configurations and inference parameters."
+    },
+    "persona": {
+      "$ref": "#/$defs/Persona",
+      "description": "Agent identity and behavioral framing."
+    },
+    "skills": {
+      "items": {
+        "$ref": "#/$defs/Skill"
+      },
+      "type": "array",
+      "description": "Tools and capabilities available to the agent."
+    },
+    "build": {
+      "$ref": "#/$defs/Build",
+      "description": "Container image build configuration."
+    },
+    "policies": {
+      "$ref": "#/$defs/Policies",
+      "description": "Security constraints and governance rules."
     },
     "profiles": {
-      "type": "object",
-      "description": "Environment-specific configuration overrides (dev/staging/prod). Profile brain overrides can only switch the default model; they cannot add new models.",
       "additionalProperties": {
-        "type": "object",
-        "description": "Profile override. Fields here are merged on top of the base configuration.",
-        "properties": {
-          "brain": {
-            "type": "object",
-            "description": "Profile brain override. Can only switch the active model via default.",
-            "required": [
-              "default"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "default": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-                "description": "Name of the model configuration to activate for this profile. Must match a name in brain.models."
-              }
-            }
-          },
-          "policies": {
-            "$ref": "#/properties/policies"
-          }
-        },
-        "additionalProperties": false
-      }
+        "$ref": "#/$defs/Profile"
+      },
+      "type": "object",
+      "description": "Environment-specific configuration overrides."
     }
-  }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "metadata",
+    "brain",
+    "persona"
+  ],
+  "title": "Agentfile v1",
+  "description": "Declarative specification for packaging AI agents with AgentCrate."
 }

@@ -1,94 +1,147 @@
 package agentfile
 
 // Agentfile represents a fully parsed Agentfile v1 specification.
+// Declarative specification for packaging AI agents with AgentCrate.
 type Agentfile struct {
-	Version  string             `yaml:"version"           json:"version"`
-	Metadata Metadata           `yaml:"metadata"          json:"metadata"`
-	Brain    Brain              `yaml:"brain"             json:"brain"`
-	Persona  Persona            `yaml:"persona"           json:"persona"`
-	Skills   []Skill            `yaml:"skills,omitempty"  json:"skills,omitempty"`
-	Build    *Build             `yaml:"build,omitempty"   json:"build,omitempty"`
-	Policies *Policies          `yaml:"policies,omitempty" json:"policies,omitempty"`
+	// Schema version. Must be "1" for v1 Agentfiles.
+	Version string `yaml:"version" json:"version" jsonschema:"required,const=1"`
+	// Agent identity and discoverability information.
+	Metadata Metadata `yaml:"metadata" json:"metadata" jsonschema:"required"`
+	// Model configurations and inference parameters.
+	Brain Brain `yaml:"brain" json:"brain" jsonschema:"required"`
+	// Agent identity and behavioral framing.
+	Persona Persona `yaml:"persona" json:"persona" jsonschema:"required"`
+	// Tools and capabilities available to the agent.
+	Skills []Skill `yaml:"skills,omitempty" json:"skills,omitempty"`
+	// Container image build configuration.
+	Build *Build `yaml:"build,omitempty" json:"build,omitempty"`
+	// Security constraints and governance rules.
+	Policies *Policies `yaml:"policies,omitempty" json:"policies,omitempty"`
+	// Environment-specific configuration overrides.
 	Profiles map[string]Profile `yaml:"profiles,omitempty" json:"profiles,omitempty"`
 }
 
 // Metadata contains agent identity and discoverability information.
 type Metadata struct {
-	Name        string   `yaml:"name"                  json:"name"`
-	Version     string   `yaml:"version"               json:"version"`
-	Description string   `yaml:"description"           json:"description"`
-	Author      string   `yaml:"author,omitempty"      json:"author,omitempty"`
-	License     string   `yaml:"license,omitempty"     json:"license,omitempty"`
-	Repository  string   `yaml:"repository,omitempty"  json:"repository,omitempty"`
-	Tags        []string `yaml:"tags,omitempty"        json:"tags,omitempty"`
+	// Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars.
+	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9._-]{0\\,127}$"`
+	// Semantic version (e.g., 1.0.0, 0.1.0-beta).
+	Version string `yaml:"version" json:"version" jsonschema:"required,pattern=^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[a-zA-Z0-9]+)?(\\+[a-zA-Z0-9]+)?$"`
+	// Human-readable description of the agent.
+	Description string `yaml:"description" json:"description" jsonschema:"required,minLength=1,maxLength=500"`
+	// Author name or organization.
+	Author string `yaml:"author,omitempty" json:"author,omitempty"`
+	// SPDX license identifier (e.g., MIT, Apache-2.0).
+	License string `yaml:"license,omitempty" json:"license,omitempty"`
+	// Source repository URL.
+	Repository string `yaml:"repository,omitempty" json:"repository,omitempty" jsonschema:"format=uri"`
+	// Discovery tags for CrateHub.
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty" jsonschema:"maxItems=20,uniqueItems=true"`
 }
 
 // Brain defines model configurations and the active default.
+// Declares named model entries with per-model tuning; profiles switch the active model via default.
 type Brain struct {
-	Default string        `yaml:"default"  json:"default"`
-	Models  []ModelConfig `yaml:"models"   json:"models"`
+	// Name of the model configuration to use by default. Must match a name in the models array.
+	Default string `yaml:"default" json:"default" jsonschema:"required,pattern=^[a-z0-9][a-z0-9-]{0\\,31}$"`
+	// Array of model configurations. Each model has its own tuning parameters.
+	Models []ModelConfig `yaml:"models" json:"models" jsonschema:"required,minItems=1"`
 }
 
 // ModelConfig defines a named model with provider-qualified identifier and tuning.
 type ModelConfig struct {
-	Name        string   `yaml:"name"                  json:"name"`
-	Model       string   `yaml:"model"                 json:"model"`
-	Temperature *float64 `yaml:"temperature,omitempty" json:"temperature,omitempty"`
-	MaxTokens   *int     `yaml:"max_tokens,omitempty"  json:"max_tokens,omitempty"`
-	TopP        *float64 `yaml:"top_p,omitempty"       json:"top_p,omitempty"`
+	// Short identifier for this model configuration (e.g., sonnet, local, fast).
+	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9-]{0\\,31}$"`
+	// Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3).
+	Model string `yaml:"model" json:"model" jsonschema:"required,pattern=^[a-z0-9-]+/[a-z0-9._-]+$"`
+	// Sampling temperature for this model.
+	Temperature *float64 `yaml:"temperature,omitempty" json:"temperature,omitempty" jsonschema:"minimum=0,maximum=2"`
+	// Maximum tokens per response for this model.
+	MaxTokens *int `yaml:"max_tokens,omitempty" json:"max_tokens,omitempty" jsonschema:"minimum=1"`
+	// Top-p (nucleus) sampling parameter for this model.
+	TopP *float64 `yaml:"top_p,omitempty" json:"top_p,omitempty" jsonschema:"minimum=0,maximum=1"`
 }
 
 // Persona defines the agent's identity and behavioral framing.
 type Persona struct {
-	SystemPrompt string `yaml:"system_prompt"         json:"system_prompt"`
-	Name         string `yaml:"name,omitempty"        json:"name,omitempty"`
-	Role         string `yaml:"role,omitempty"        json:"role,omitempty"`
+	// The system-level instruction that defines agent behavior.
+	SystemPrompt string `yaml:"system_prompt" json:"system_prompt" jsonschema:"required,minLength=1"`
+	// Display name for the agent persona.
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	// Role description (e.g., Code Reviewer, Research Assistant).
+	Role string `yaml:"role,omitempty" json:"role,omitempty"`
 }
 
 // Skill represents a tool or capability available to the agent.
 type Skill struct {
-	Name        string         `yaml:"name"                  json:"name"`
-	Type        string         `yaml:"type"                  json:"type"`
-	Source      string         `yaml:"source"                json:"source"`
-	Description string         `yaml:"description,omitempty" json:"description,omitempty"`
-	Config      map[string]any `yaml:"config,omitempty"      json:"config,omitempty"`
+	// Unique skill identifier.
+	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9._-]{0\\,63}$"`
+	// Skill transport type. 'mcp' for registry tools, 'stdio' for local binaries, 'http' for Streamable HTTP endpoints, 'sse' for SSE endpoints.
+	Type string `yaml:"type" json:"type" jsonschema:"required,enum=mcp,enum=stdio,enum=http,enum=sse"`
+	// Skill source. For mcp: registry skill name. For stdio: local binary path (if no command). For http/sse: endpoint URL.
+	Source string `yaml:"source,omitempty" json:"source,omitempty"`
+	// Human-readable description of the skill.
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	// Skill-specific configuration key-value pairs.
+	Config map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
+	// Binary to execute for stdio skills (e.g., "npx"). If empty, source is used as the binary path.
+	Command string `yaml:"command,omitempty" json:"command,omitempty"`
+	// Arguments passed to command for stdio skills (e.g., ["-y", "@modelcontextprotocol/server-everything"]).
+	Args []string `yaml:"args,omitempty" json:"args,omitempty"`
+	// Required environment variables. The runtime validates these are set at startup.
+	Env []string `yaml:"env,omitempty" json:"env,omitempty"`
 }
 
 // Build configures the container image build process.
+// Use this to customize how crate build produces agent images.
 type Build struct {
-	// BaseImage overrides the default base image (agentcrate/base:latest).
-	// Use this to specify a custom base image with additional dependencies.
+	// Override the default base image (agentcrate/base:latest). Use a custom image with additional system dependencies or a private registry image.
 	BaseImage string `yaml:"base_image" json:"base_image"`
 }
 
 // Policies defines security constraints and governance rules.
 type Policies struct {
-	AllowedDomains  []string         `yaml:"allowed_domains,omitempty"  json:"allowed_domains,omitempty"`
-	HumanInTheLoop  []HITLRule       `yaml:"human_in_the_loop,omitempty" json:"human_in_the_loop,omitempty"`
+	// List of allowed network domains the agent can access.
+	AllowedDomains []string `yaml:"allowed_domains,omitempty" json:"allowed_domains,omitempty"`
+	// Human-in-the-loop approval requirements.
+	HumanInTheLoop []HITLRule `yaml:"human_in_the_loop,omitempty" json:"human_in_the_loop,omitempty"`
+	// Fine-grained permissions per skill.
 	ToolPermissions []ToolPermission `yaml:"tool_permissions,omitempty" json:"tool_permissions,omitempty"`
-	MaxTokens       *int             `yaml:"max_tokens,omitempty"       json:"max_tokens,omitempty"`
-	MaxTurns        *int             `yaml:"max_turns,omitempty"        json:"max_turns,omitempty"`
+	// Global token budget per session.
+	MaxTokens *int `yaml:"max_tokens,omitempty" json:"max_tokens,omitempty" jsonschema:"minimum=1"`
+	// Maximum conversation turns per session.
+	MaxTurns *int `yaml:"max_turns,omitempty" json:"max_turns,omitempty" jsonschema:"minimum=1"`
 }
 
 // HITLRule defines a human-in-the-loop approval requirement.
 type HITLRule struct {
-	Tool      string `yaml:"tool"      json:"tool"`
-	Condition string `yaml:"condition" json:"condition"`
+	// Skill name that requires human approval.
+	Tool string `yaml:"tool" json:"tool" jsonschema:"required"`
+	// Condition expression for when HITL is required (e.g., "always", "cost > 100").
+	Condition string `yaml:"condition" json:"condition" jsonschema:"required"`
 }
 
 // ToolPermission defines fine-grained permissions for a skill.
 type ToolPermission struct {
-	Skill string   `yaml:"skill" json:"skill"`
-	Allow []string `yaml:"allow" json:"allow"`
+	// Skill name to assign permissions to.
+	Skill string `yaml:"skill" json:"skill" jsonschema:"required"`
+	// List of allowed operations for this skill.
+	Allow []string `yaml:"allow" json:"allow" jsonschema:"required"`
 }
 
 // ProfileBrain allows profile overrides to switch the active model.
 type ProfileBrain struct {
-	Default string `yaml:"default" json:"default"`
+	// Name of the model configuration to activate for this profile. Must match a name in brain.models.
+	Default string `yaml:"default" json:"default" jsonschema:"required,pattern=^[a-z0-9][a-z0-9-]{0\\,31}$"`
 }
 
-// Profile represents environment-specific configuration overrides.
+// Profile represents environment-specific configuration overrides (dev/staging/prod).
+// Profile brain overrides can only switch the default model; they cannot add new models.
 type Profile struct {
-	Brain    *ProfileBrain `yaml:"brain,omitempty"    json:"brain,omitempty"`
-	Policies *Policies     `yaml:"policies,omitempty" json:"policies,omitempty"`
+	// Profile brain override. Can only switch the active model via default.
+	Brain *ProfileBrain `yaml:"brain,omitempty" json:"brain,omitempty"`
+	// Profile-specific policy overrides.
+	Policies *Policies `yaml:"policies,omitempty" json:"policies,omitempty"`
 }
+
+// dummy

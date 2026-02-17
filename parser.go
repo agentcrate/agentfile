@@ -248,8 +248,8 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 
 	// Build a set of declared skill names.
 	skillNames := make(map[string]bool, len(af.Skills))
-	for _, s := range af.Skills {
-		skillNames[s.Name] = true
+	for i := range af.Skills {
+		skillNames[af.Skills[i].Name] = true
 	}
 
 	if af.Policies != nil {
@@ -281,31 +281,38 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 	}
 
 	// Validate skill source formats per type.
-	for i, s := range af.Skills {
+	for i := range af.Skills {
 		field := fmt.Sprintf("skills[%d].source", i)
-		switch s.Type {
+		switch af.Skills[i].Type {
 		case "http", "sse":
 			// Must be a valid URL with http/https scheme.
-			if !isValidURL(s.Source) {
+			if !isValidURL(af.Skills[i].Source) {
 				errs = append(errs, ValidationError{
 					Field:   field,
-					Message: fmt.Sprintf("%s skill source must be a valid http/https URL", s.Type),
-					Value:   fmt.Sprintf("%q", s.Source),
+					Message: fmt.Sprintf("%s skill source must be a valid http/https URL", af.Skills[i].Type),
+					Value:   fmt.Sprintf("%q", af.Skills[i].Source),
 					Line:    resolveNodeLine(doc, field),
 				})
 			}
 		case "stdio":
-			// Must be a non-empty path.
-			if strings.TrimSpace(s.Source) == "" {
+			// Must have command and args.
+			if strings.TrimSpace(af.Skills[i].Command) == "" {
 				errs = append(errs, ValidationError{
-					Field:   field,
-					Message: "stdio skill source must be a non-empty path",
-					Line:    resolveNodeLine(doc, field),
+					Field:   fmt.Sprintf("skills[%d].command", i),
+					Message: "stdio skill must have a command",
+					Line:    resolveNodeLine(doc, fmt.Sprintf("skills[%d].name", i)),
+				})
+			}
+			if len(af.Skills[i].Args) == 0 {
+				errs = append(errs, ValidationError{
+					Field:   fmt.Sprintf("skills[%d].args", i),
+					Message: "stdio skill must have non-empty args",
+					Line:    resolveNodeLine(doc, fmt.Sprintf("skills[%d].name", i)),
 				})
 			}
 		case "mcp":
 			// Registry identifier -- must be non-empty.
-			if strings.TrimSpace(s.Source) == "" {
+			if strings.TrimSpace(af.Skills[i].Source) == "" {
 				errs = append(errs, ValidationError{
 					Field:   field,
 					Message: "mcp skill source must be a non-empty registry identifier",

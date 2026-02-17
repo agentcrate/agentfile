@@ -300,7 +300,10 @@ persona:
 skills:
   - name: my-stdio
     type: stdio
-    source: my-server
+    command: npx
+    args:
+      - "-y"
+      - "@example/my-server"
   - name: my-registry
     type: mcp
     source: cratehub.ai/tools/calculator
