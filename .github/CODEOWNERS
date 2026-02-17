@@ -1,0 +1,12 @@
+# Default owners for everything in the repo
+* @agentcrate/maintainers
+
+# Core spec
+/*.go @agentcrate/maintainers
+/schema/ @agentcrate/maintainers
+
+# CI/CD
+/.github/ @agentcrate/maintainers
+
+# Documentation
+*.md @agentcrate/maintainers

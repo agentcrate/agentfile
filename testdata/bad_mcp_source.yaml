@@ -1,0 +1,20 @@
+version: "1"
+
+metadata:
+  name: bad-http-source
+  version: "1.0.0"
+  description: "Agent with invalid HTTP skill source."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: broken-http
+    type: http
+    source: not-a-valid-url

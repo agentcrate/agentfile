@@ -1,0 +1,45 @@
+version: "1"
+
+metadata:
+  name: policy-valid
+  version: "1.0.0"
+  description: "Agent with valid policies."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a compliant agent."
+
+skills:
+  - name: sec-data
+    type: http
+    source: https://mcp.sec.gov/v1
+    description: "SEC EDGAR data feed"
+  - name: slack-notify
+    type: http
+    source: https://mcp.slack.com/v1
+    description: "Slack notification service"
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search
+
+policies:
+  allowed_domains:
+    - sec.gov
+    - slack.com
+  human_in_the_loop:
+    - tool: slack-notify
+      condition: always
+  tool_permissions:
+    - skill: sec-data
+      allow:
+        - read
+    - skill: slack-notify
+      allow:
+        - send_message
+  max_tokens: 100000
+  max_turns: 50

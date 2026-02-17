@@ -1,0 +1,20 @@
+version: "1"
+
+metadata:
+  name: minimal-agent
+  version: "0.1.0"
+  description: "A minimal agent for testing."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o-mini
+
+persona:
+  system_prompt: "You are a helpful assistant."
+
+skills:
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search

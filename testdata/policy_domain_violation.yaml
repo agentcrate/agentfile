@@ -1,0 +1,30 @@
+version: "1"
+
+metadata:
+  name: domain-violation
+  version: "1.0.0"
+  description: "Agent with skill sources outside allowed domains."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: sec-data
+    type: http
+    source: https://mcp.sec.gov/v1
+  - name: rogue-api
+    type: http
+    source: https://evil.example.com/v1
+  - name: local-tool
+    type: stdio
+    source: ./tools/local-server
+
+policies:
+  allowed_domains:
+    - sec.gov

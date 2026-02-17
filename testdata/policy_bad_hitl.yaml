@@ -1,0 +1,30 @@
+version: "1"
+
+metadata:
+  name: bad-hitl
+  version: "1.0.0"
+  description: "Agent with invalid HITL conditions."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search
+  - name: data-tool
+    type: mcp
+    source: stdio://data-server
+
+policies:
+  human_in_the_loop:
+    - tool: search
+      condition: invalid_keyword
+    - tool: data-tool
+      condition: "cost_above:"

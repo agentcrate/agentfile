@@ -1,0 +1,29 @@
+version: "1"
+
+metadata:
+  name: bad-policy-refs
+  version: "1.0.0"
+  description: "Agent with policy references to non-existent skills."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search
+
+policies:
+  tool_permissions:
+    - skill: nonexistent-skill
+      allow:
+        - read
+  human_in_the_loop:
+    - tool: also-nonexistent
+      condition: always

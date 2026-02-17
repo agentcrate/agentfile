@@ -1,0 +1,19 @@
+version: "1"
+
+metadata:
+  name: missing-required
+  description: "Agent missing required metadata.version field."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search

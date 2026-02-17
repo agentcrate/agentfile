@@ -1,0 +1,26 @@
+version: "1"
+
+metadata:
+  name: unknown-skill-ref
+  version: "1.0.0"
+  description: "Agent where tool_permissions reference an undeclared skill."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+skills:
+  - name: search
+    type: mcp
+    source: cratehub.ai/tools/web-search
+
+policies:
+  tool_permissions:
+    - skill: unknown-skill
+      allow:
+        - read
