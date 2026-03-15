@@ -1,0 +1,41 @@
+# Release — create a GitHub Release when a semver tag is pushed.
+#
+# agentfile is a Go library consumed via `go get`, so releases are
+# just GitHub Releases with auto-generated changelogs. No binaries.
+#
+# Tag examples:
+#   git tag v0.1.0 && git push origin v0.1.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Verify the module builds and tests pass at the tagged commit.
+      - name: Verify
+        run: |
+          go build ./...
+          go test ./...
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
