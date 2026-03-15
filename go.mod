@@ -1,6 +1,6 @@
 module github.com/agentcrate/agentfile
 
-go 1.25.7
+go 1.25.8
 
 require (
 	github.com/invopop/jsonschema v0.13.0
