@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -23,20 +23,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run tests
-        run: go test -race -v ./...
-
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
       - name: Run tests with coverage
+        shell: bash
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload to Codecov
@@ -44,6 +32,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: coverage.out
+          flags: ${{ matrix.os }}
           fail_ci_if_error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
