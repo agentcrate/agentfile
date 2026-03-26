@@ -14,6 +14,9 @@ coverage:
       default:
         target: 80%
 
+ignore:
+  - "cmd/genschema/**"
+
 comment:
   layout: "reach,diff,flags,files"
   behavior: default

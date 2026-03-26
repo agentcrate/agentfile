@@ -362,3 +362,29 @@ func TestCheckPolicies_EmptyPolicies(t *testing.T) {
 		t.Errorf("expected 0 findings for empty policies, got %d", len(pr.Findings))
 	}
 }
+
+func TestCheckPolicies_CostAboveNonNumeric(t *testing.T) {
+	af := &agentfile.Agentfile{
+		Skills: []agentfile.Skill{
+			{Name: "tool", Type: "mcp", Source: "cratehub.ai/tools/test"},
+		},
+		Policies: &agentfile.Policies{
+			HumanInTheLoop: []agentfile.HITLRule{
+				{Tool: "tool", Condition: "cost_above:banana"},
+			},
+		},
+	}
+	pr := agentfile.CheckPolicies(af)
+	if pr.Valid {
+		t.Fatal("expected invalid for non-numeric cost_above")
+	}
+	found := false
+	for _, e := range pr.Errors() {
+		if strings.Contains(e.Message, "must be numeric") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected error about non-numeric cost_above threshold")
+	}
+}

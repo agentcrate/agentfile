@@ -1,0 +1,18 @@
+version: "1"
+
+metadata:
+  name: build-agent
+  version: "1.0.0"
+  description: "Agent with custom build configuration."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+
+persona:
+  system_prompt: "You are a test agent."
+
+build:
+  base_image: "custom-registry.io/agent-base:1.2.0"
