@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"golang.org/x/text/language"
@@ -40,8 +42,18 @@ func (r *ParseResult) IsValid() bool {
 	return len(r.Errors) == 0
 }
 
+// maxAgentfileSize prevents OOM from oversized input (1 MB).
+const maxAgentfileSize = 1 << 20
+
 // ParseFile reads and validates an Agentfile from the filesystem.
 func ParseFile(path string) (*ParseResult, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading agentfile: %w", err)
+	}
+	if info.Size() > maxAgentfileSize {
+		return nil, fmt.Errorf("agentfile too large: %d bytes (max %d)", info.Size(), maxAgentfileSize)
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading agentfile: %w", err)
@@ -52,19 +64,18 @@ func ParseFile(path string) (*ParseResult, error) {
 // Parse validates raw YAML bytes against the Agentfile v1 schema
 // and returns the parsed result.
 func Parse(data []byte) (*ParseResult, error) {
-	// Phase 0: Parse into yaml.Node to preserve source line numbers.
+	// Parse into yaml.Node separately because it preserves source line numbers,
+	// while jsonschema/v6 requires a plain map[string]any for validation.
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("parsing yaml: %w", err)
 	}
 
-	// Phase 1: YAML -> generic map for JSON Schema validation.
 	var raw any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parsing yaml: %w", err)
 	}
 
-	// Convert YAML map keys from map[string]any (yaml.v3 does this by default).
 	normalized := normalizeYAML(raw)
 
 	// Phase 2: Validate against JSON Schema.
@@ -101,23 +112,37 @@ func Parse(data []byte) (*ParseResult, error) {
 	return result, nil
 }
 
-// validateSchema compiles and validates data against the embedded JSON Schema.
+var (
+	compiledSchema     *jsonschema.Schema
+	compiledSchemaOnce sync.Once
+	compiledSchemaErr  error
+)
+
+// compileSchema lazily compiles the embedded JSON Schema exactly once.
+func compileSchema() (*jsonschema.Schema, error) {
+	compiledSchemaOnce.Do(func() {
+		c := jsonschema.NewCompiler()
+		schemaDoc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(SchemaV1)))
+		if err != nil {
+			compiledSchemaErr = fmt.Errorf("unmarshaling schema: %w", err)
+			return
+		}
+		if err := c.AddResource("agentfile-v1.json", schemaDoc); err != nil {
+			compiledSchemaErr = fmt.Errorf("adding schema resource: %w", err)
+			return
+		}
+		compiledSchema, compiledSchemaErr = c.Compile("agentfile-v1.json")
+	})
+	return compiledSchema, compiledSchemaErr
+}
+
+// validateSchema validates data against the embedded JSON Schema.
 func validateSchema(data any) ([]ValidationError, error) {
-	// Compile the schema.
-	c := jsonschema.NewCompiler()
-	schemaDoc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(SchemaV1)))
+	sch, err := compileSchema()
 	if err != nil {
-		return nil, fmt.Errorf("unmarshaling schema: %w", err)
-	}
-	if err := c.AddResource("agentfile-v1.json", schemaDoc); err != nil {
-		return nil, fmt.Errorf("adding schema resource: %w", err)
-	}
-	sch, err := c.Compile("agentfile-v1.json")
-	if err != nil {
-		return nil, fmt.Errorf("compiling schema: %w", err)
+		return nil, err
 	}
 
-	// Convert data to JSON-compatible form for the validator.
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling to json: %w", err)
@@ -127,7 +152,6 @@ func validateSchema(data any) ([]ValidationError, error) {
 		return nil, fmt.Errorf("unmarshaling json: %w", err)
 	}
 
-	// Validate.
 	err = sch.Validate(jsonData)
 	if err == nil {
 		return nil, nil
@@ -149,7 +173,7 @@ func flattenValidationErrors(err *jsonschema.ValidationError) []ValidationError 
 	return result
 }
 
-// printer is an English message printer for localizing JSON Schema errors.
+// Hardcoded to English; i18n is out of scope for v1.
 var printer = message.NewPrinter(language.English)
 
 func collectErrors(err *jsonschema.ValidationError, out *[]ValidationError) {
@@ -295,7 +319,8 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				})
 			}
 		case "stdio":
-			// Must have command and args.
+			// stdio transports invoke a local binary; command identifies what to
+			// run and args carry at minimum the server package or entrypoint.
 			if strings.TrimSpace(af.Skills[i].Command) == "" {
 				errs = append(errs, ValidationError{
 					Field:   fmt.Sprintf("skills[%d].command", i),
@@ -325,17 +350,19 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 	return errs
 }
 
-// isValidURL checks that a source string is a valid http/https URL.
+// isValidURL checks that a source string is a valid http/https URL
+// with a non-empty host. Go's url.Parse is extremely lenient, so we
+// also verify scheme and host explicitly.
 func isValidURL(source string) bool {
-	if !strings.HasPrefix(source, "http://") && !strings.HasPrefix(source, "https://") {
+	parsed, err := url.Parse(source)
+	if err != nil {
 		return false
 	}
-	_, err := url.Parse(source)
-	return err == nil
+	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
-// normalizeYAML converts YAML-specific types (map[string]any is default for
-// yaml.v3 so this is mostly a pass-through, but handles edge cases).
+// normalizeYAML deep-copies the value tree so the caller can mutate it
+// without affecting the original yaml.Unmarshal output.
 func normalizeYAML(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
@@ -444,17 +471,21 @@ func findMappingValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// parseIndex converts a string to an integer index, returning -1 on failure.
+// parseIndex converts a string to an integer index, returning -1 on failure
+// or overflow. The ceiling is set to math.MaxInt32 to guard against crafted input.
 func parseIndex(s string) int {
+	if s == "" {
+		return -1
+	}
 	idx := 0
 	for _, c := range s {
 		if c < '0' || c > '9' {
 			return -1
 		}
 		idx = idx*10 + int(c-'0')
-	}
-	if s == "" {
-		return -1
+		if idx > math.MaxInt32 {
+			return -1
+		}
 	}
 	return idx
 }

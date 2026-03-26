@@ -1,0 +1,17 @@
+version: "1"
+
+metadata:
+  name: dup-model-agent
+  version: "1.0.0"
+  description: "Agent with duplicate model names."
+
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+    - name: gpt
+      model: openai/gpt-4o-mini
+
+persona:
+  system_prompt: "You are a test agent."

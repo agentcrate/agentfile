@@ -30,7 +30,7 @@
       "properties": {
         "base_image": {
           "type": "string",
-          "description": "Override the default base image (agentcrate/base:latest). Use a custom image with additional system dependencies or a private registry image."
+          "description": "Override the default base image (agentcrate/base:latest). Required when\nthe build section is present."
         }
       },
       "additionalProperties": false,

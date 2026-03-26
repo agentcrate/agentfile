@@ -259,3 +259,31 @@ func TestAvailableProfiles_EmptyAgentfile(t *testing.T) {
 		t.Errorf("expected [default], got %v", names)
 	}
 }
+
+func TestResolveProfile_CheckPoliciesOnResolved(t *testing.T) {
+	af := baseAgentfile()
+	af.Skills = []Skill{
+		{Name: "web-search", Type: "mcp", Source: "cratehub.ai/tools/web-search"},
+	}
+	af.Policies = &Policies{
+		AllowedDomains: []string{"example.com"},
+		ToolPermissions: []ToolPermission{
+			{Skill: "web-search", Allow: []string{"read"}},
+		},
+	}
+
+	resolved, err := ResolveProfile(af, "prod")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Prod profile replaces policies entirely (no tool_permissions),
+	// so CheckPolicies should return valid (no stale skill references).
+	pr := CheckPolicies(resolved)
+	if pr.HasErrors() {
+		t.Error("expected no errors on resolved profile")
+		for _, f := range pr.Findings {
+			t.Logf("  %s: %s: %s", f.Severity, f.Field, f.Message)
+		}
+	}
+}

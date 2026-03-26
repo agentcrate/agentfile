@@ -323,6 +323,67 @@ skills:
 	}
 }
 
+func TestParse_DuplicateModelNames(t *testing.T) {
+	data := mustReadTestdata(t, "duplicate_model_names.yaml")
+	result, err := agentfile.Parse(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsValid() {
+		t.Fatal("expected validation errors for duplicate model names")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Message, "duplicate model name") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected error about duplicate model name")
+		for _, e := range result.Errors {
+			t.Logf("  got: %s: %s", e.Field, e.Message)
+		}
+	}
+}
+
+func TestParse_ValidWithBuild(t *testing.T) {
+	data := mustReadTestdata(t, "valid_with_build.yaml")
+	result, err := agentfile.Parse(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsValid() {
+		for _, e := range result.Errors {
+			t.Logf("error: %s: %s", e.Field, e.Message)
+		}
+		t.Fatalf("expected valid, got %d errors", len(result.Errors))
+	}
+	if result.Agentfile.Build == nil {
+		t.Fatal("expected build section")
+	}
+	if result.Agentfile.Build.BaseImage != "custom-registry.io/agent-base:1.2.0" {
+		t.Errorf("unexpected base_image: %q", result.Agentfile.Build.BaseImage)
+	}
+}
+
+func TestParseFile_TooLarge(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/huge.yaml"
+	large := make([]byte, 1<<20+1) // 1 byte over the limit
+	if err := os.WriteFile(path, large, 0644); err != nil {
+		t.Fatalf("writing temp file: %v", err)
+	}
+	_, err := agentfile.ParseFile(path)
+	if err == nil {
+		t.Fatal("expected error for oversized file")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("expected 'too large' in error, got: %v", err)
+	}
+}
+
 // --- Line number tests ---
 
 func TestParse_LineNumbers_SchemaErrors(t *testing.T) {
@@ -353,12 +414,12 @@ func TestParse_LineNumbers_SemanticErrors(t *testing.T) {
 	}
 
 	for _, e := range result.Errors {
-		if strings.Contains(e.Message, "MCP source") {
+		if strings.Contains(e.Message, "http skill source") {
 			if e.Line == 0 {
-				t.Errorf("expected non-zero line number for MCP source error, got 0")
+				t.Errorf("expected non-zero line number for http skill source error, got 0")
 			}
 			if e.Line > 0 {
-				t.Logf("MCP source error correctly resolved to line %d", e.Line)
+				t.Logf("http skill source error correctly resolved to line %d", e.Line)
 			}
 		}
 	}

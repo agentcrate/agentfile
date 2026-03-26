@@ -27,7 +27,7 @@ coverage:
 
 ## clean: Remove build artifacts
 clean:
-	@rm -rf dist/
+	@rm -f coverage.out coverage.html
 
 ## help: Show this help message
 help:

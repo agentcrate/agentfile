@@ -3,6 +3,8 @@ package agentfile
 import (
 	"fmt"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -175,6 +177,9 @@ func validateHITLCondition(condition string) error {
 		if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
 			return fmt.Errorf("'cost_above' condition requires a numeric threshold (e.g., cost_above:100)")
 		}
+		if _, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64); err != nil {
+			return fmt.Errorf("'cost_above' threshold must be numeric (got %q)", parts[1])
+		}
 	}
 
 	return nil
@@ -186,6 +191,7 @@ func validHITLKeywords() string {
 	for k := range validHITLConditions {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 	return strings.Join(keys, ", ")
 }
 

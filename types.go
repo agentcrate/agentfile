@@ -95,7 +95,8 @@ type Skill struct {
 // Build configures the container image build process.
 // Use this to customize how crate build produces agent images.
 type Build struct {
-	// Override the default base image (agentcrate/base:latest). Use a custom image with additional system dependencies or a private registry image.
+	// Override the default base image (agentcrate/base:latest). Required when
+	// the build section is present.
 	BaseImage string `yaml:"base_image" json:"base_image"`
 }
 
@@ -143,5 +144,3 @@ type Profile struct {
 	// Profile-specific policy overrides.
 	Policies *Policies `yaml:"policies,omitempty" json:"policies,omitempty"`
 }
-
-// dummy
