@@ -18,7 +18,7 @@ Never run `go test` directly — always use `make`.
 
 ## Architecture
 
-```
+```text
 types.go           All Agentfile v1 type definitions
 parser.go          YAML parsing, JSON Schema validation, semantic checks
 profile.go         Environment-specific config resolution
@@ -31,7 +31,7 @@ testdata/          14 YAML fixtures for testing
 
 ## Parse Pipeline (4 phases)
 
-```
+```text
 YAML bytes → Phase 1: YAML AST (preserves line numbers)
            → Phase 2: JSON Schema validation (Draft 2020-12)
            → Phase 3: Typed unmarshal into Agentfile struct
