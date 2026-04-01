@@ -37,6 +37,16 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: DavidAnson/markdownlint-cli2-action@v23
+        with:
+          globs: "**/*.md"
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -51,16 +61,6 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.9.0
-
-  markdown-lint:
-    name: Markdown Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: DavidAnson/markdownlint-cli2-action@v23
-        with:
-          globs: "**/*.md"
 
   govulncheck:
     name: Vulnerability Check
