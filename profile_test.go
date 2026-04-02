@@ -139,8 +139,12 @@ func TestResolveProfile_PreservesBasePolicies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resolved.Policies != basePolicies {
-		t.Error("expected base policies to be preserved when profile doesn't override")
+	// Deep copy means different pointer, but values should match.
+	if resolved.Policies == nil {
+		t.Fatal("expected base policies to be preserved when profile doesn't override")
+	}
+	if len(resolved.Policies.AllowedDomains) != 1 || resolved.Policies.AllowedDomains[0] != "example.com" {
+		t.Error("expected base policies values to be preserved when profile doesn't override")
 	}
 }
 
@@ -235,6 +239,54 @@ func TestResolveProfile_NotFound_NoProfiles(t *testing.T) {
 // ---------------------------------------------------------------------------
 // availableProfiles
 // ---------------------------------------------------------------------------
+
+func TestResolveProfile_DeepCopySlices(t *testing.T) {
+	af := baseAgentfile()
+	af.Policies = &Policies{
+		AllowedDomains: []string{"example.com"},
+		ToolPermissions: []ToolPermission{
+			{Skill: "web-search", Allow: []string{"read"}},
+		},
+		HumanInTheLoop: []HITLRule{
+			{Tool: "web-search", Condition: "always"},
+		},
+	}
+
+	resolved, err := ResolveProfile(af, "dev")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Mutate resolved copy's Skills slice.
+	originalSkillsLen := len(af.Skills)
+	resolved.Skills = append(resolved.Skills, Skill{Name: "new-skill", Type: "mcp", Source: "test"})
+	if len(af.Skills) != originalSkillsLen {
+		t.Errorf("appending to resolved.Skills mutated original: got len %d, want %d",
+			len(af.Skills), originalSkillsLen)
+	}
+
+	// Mutate resolved copy's Brain.Models slice.
+	originalModelsLen := len(af.Brain.Models)
+	resolved.Brain.Models = append(resolved.Brain.Models, ModelConfig{Name: "new", Model: "test/new"})
+	if len(af.Brain.Models) != originalModelsLen {
+		t.Errorf("appending to resolved.Brain.Models mutated original: got len %d, want %d",
+			len(af.Brain.Models), originalModelsLen)
+	}
+
+	// Mutate resolved copy's Build pointer.
+	if af.Build == nil {
+		af.Build = &Build{BaseImage: "original:latest"}
+		resolved2, err := ResolveProfile(af, "staging")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		resolved2.Build.BaseImage = "mutated:latest"
+		if af.Build.BaseImage != "original:latest" {
+			t.Errorf("mutating resolved.Build mutated original: got %q, want %q",
+				af.Build.BaseImage, "original:latest")
+		}
+	}
+}
 
 func TestAvailableProfiles_Sorted(t *testing.T) {
 	af := baseAgentfile()

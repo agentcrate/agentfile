@@ -245,13 +245,14 @@ func extractHost(source string) string {
 // isDomainAllowed checks if a host matches any allowed domain.
 // Supports subdomain matching: "mcp.sec.gov" matches "sec.gov".
 func isDomainAllowed(host string, allowed map[string]bool) bool {
+	host = strings.ToLower(host)
 	// Exact match.
 	if allowed[host] {
 		return true
 	}
 	// Subdomain match: check if host ends with ".domain".
 	for domain := range allowed {
-		if strings.HasSuffix(host, "."+domain) {
+		if strings.HasSuffix(host, "."+strings.ToLower(domain)) {
 			return true
 		}
 	}

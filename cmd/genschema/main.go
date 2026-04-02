@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/agentcrate/agentfile"
@@ -24,7 +25,7 @@ func main() {
 
 	// Pull descriptions from Go comments on types.go.
 	if err := r.AddGoComments("github.com/agentcrate/agentfile", "./"); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load Go comments: %v\n", err)
+		log.Fatalf("addGoComments: %v", err)
 	}
 
 	schema := r.Reflect(&agentfile.Agentfile{})

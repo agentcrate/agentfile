@@ -24,6 +24,7 @@ type Agentfile struct {
 // Metadata contains agent identity and discoverability information.
 type Metadata struct {
 	// Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars.
+	// NOTE: Commas in jsonschema patterns must be escaped as \, because the struct tag parser treats commas as delimiters.
 	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9._-]{0\\,127}$"`
 	// Semantic version (e.g., 1.0.0, 0.1.0-beta).
 	Version string `yaml:"version" json:"version" jsonschema:"required,pattern=^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[a-zA-Z0-9]+)?(\\+[a-zA-Z0-9]+)?$"`
@@ -53,6 +54,7 @@ type ModelConfig struct {
 	// Short identifier for this model configuration (e.g., sonnet, local, fast).
 	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9-]{0\\,31}$"`
 	// Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3).
+	// Provider and model names must be lowercase.
 	Model string `yaml:"model" json:"model" jsonschema:"required,pattern=^[a-z0-9-]+/[a-z0-9._-]+$"`
 	// Sampling temperature for this model.
 	Temperature *float64 `yaml:"temperature,omitempty" json:"temperature,omitempty" jsonschema:"minimum=0,maximum=2"`
@@ -83,6 +85,7 @@ type Skill struct {
 	// Human-readable description of the skill.
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 	// Skill-specific configuration key-value pairs.
+	// Arbitrary key-value configuration. Server-side validation should enforce maxProperties and depth limits.
 	Config map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
 	// Binary to execute for stdio skills (e.g., "npx"). If empty, source is used as the binary path.
 	Command string `yaml:"command,omitempty" json:"command,omitempty"`
@@ -97,6 +100,7 @@ type Skill struct {
 type Build struct {
 	// Override the default base image (agentcrate/base:latest). Required when
 	// the build section is present.
+	// Docker image reference. Server-side validation should enforce format (registry/image:tag) and max length.
 	BaseImage string `yaml:"base_image" json:"base_image"`
 }
 

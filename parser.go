@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -47,16 +48,18 @@ const maxAgentfileSize = 1 << 20
 
 // ParseFile reads and validates an Agentfile from the filesystem.
 func ParseFile(path string) (*ParseResult, error) {
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening agentfile: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(f, maxAgentfileSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading agentfile: %w", err)
 	}
-	if info.Size() > maxAgentfileSize {
-		return nil, fmt.Errorf("agentfile too large: %d bytes (max %d)", info.Size(), maxAgentfileSize)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading agentfile: %w", err)
+	if len(data) > maxAgentfileSize {
+		return nil, fmt.Errorf("agentfile exceeds maximum size of %d bytes", maxAgentfileSize)
 	}
 	return Parse(data)
 }
@@ -64,8 +67,16 @@ func ParseFile(path string) (*ParseResult, error) {
 // Parse validates raw YAML bytes against the Agentfile v1 schema
 // and returns the parsed result.
 func Parse(data []byte) (*ParseResult, error) {
-	// Parse into yaml.Node separately because it preserves source line numbers,
-	// while jsonschema/v6 requires a plain map[string]any for validation.
+	if len(data) > maxAgentfileSize {
+		return nil, fmt.Errorf("agentfile data exceeds maximum size of %d bytes", maxAgentfileSize)
+	}
+
+	// YAML is parsed twice: first into yaml.Node (for line numbers in error
+	// messages), then into any (for JSON Schema validation, which requires
+	// json.Unmarshal-compatible types). Merging these would require walking the
+	// yaml.Node tree manually.
+
+	// Phase 1: Parse YAML into AST for line number resolution.
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("parsing yaml: %w", err)
@@ -106,12 +117,19 @@ func Parse(data []byte) (*ParseResult, error) {
 	result.Agentfile = &af
 
 	// Phase 4: Semantic validation (cross-field checks the schema can't express).
-	semanticErrors := validateSemantics(&af, &doc)
-	result.Errors = append(result.Errors, semanticErrors...)
+	// Only runs on schema-valid input — semantic checks assume well-formed data.
+	if len(validationErrors) == 0 {
+		semanticErrors := validateSemantics(&af, &doc)
+		result.Errors = append(result.Errors, semanticErrors...)
+	}
 
 	return result, nil
 }
 
+// compileSchema uses sync.Once: if compilation fails (e.g., corrupted embedded
+// schema), the error is permanent and every subsequent Parse call returns it.
+// This is intentional — a corrupted schema indicates a build-time defect, not a
+// transient error.
 var (
 	compiledSchema     *jsonschema.Schema
 	compiledSchemaOnce sync.Once
@@ -143,6 +161,9 @@ func validateSchema(data any) ([]ValidationError, error) {
 		return nil, err
 	}
 
+	// JSON round-trip: the jsonschema/v6 library requires values produced by
+	// json.Unmarshal (not yaml.Unmarshal) for correct type matching. This
+	// marshal+unmarshal step converts YAML-native types to JSON-native types.
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling to json: %w", err)
@@ -173,7 +194,7 @@ func flattenValidationErrors(err *jsonschema.ValidationError) []ValidationError 
 	return result
 }
 
-// Hardcoded to English; i18n is out of scope for v1.
+// TODO(i18n): Hardcoded to English for v1.
 var printer = message.NewPrinter(language.English)
 
 func collectErrors(err *jsonschema.ValidationError, out *[]ValidationError) {
@@ -268,6 +289,21 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				Line:    resolveNodeLine(doc, field),
 			})
 		}
+	}
+
+	// Check duplicate skill names.
+	seenSkills := make(map[string]bool, len(af.Skills))
+	for i := range af.Skills {
+		if seenSkills[af.Skills[i].Name] {
+			field := fmt.Sprintf("skills[%d].name", i)
+			errs = append(errs, ValidationError{
+				Field:   field,
+				Message: "duplicate skill name",
+				Value:   fmt.Sprintf("%q", af.Skills[i].Name),
+				Line:    resolveNodeLine(doc, field),
+			})
+		}
+		seenSkills[af.Skills[i].Name] = true
 	}
 
 	// Build a set of declared skill names.
