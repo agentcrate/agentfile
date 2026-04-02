@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Agentfile — Schema & Validation Library
 
 Go library for parsing, validating, and resolving Agentfile v1 YAML specs. Used by `crate` (CLI) and `crated` (runtime).
