@@ -21,6 +21,7 @@ If any preflight check fails, fix it before starting new work.
 ## Repository Context
 
 This agent's behavior is governed by the conventions in `CLAUDE.md`. Read it before every task. Key points:
+
 - All commands go through `make` — never run `go test` directly
 - `types.go` is the source of truth — always regenerate the JSON schema with `make schema` after changes
 - Validation issues go in `ParseResult.Errors`, not raw `error` returns

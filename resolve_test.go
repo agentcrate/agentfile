@@ -147,6 +147,48 @@ func TestResolveNodeLine_EmptyDocument(t *testing.T) {
 	}
 }
 
+func TestFindMappingValue_OddContentLength(t *testing.T) {
+	// A malformed MappingNode with an odd number of Content nodes.
+	// findMappingValue should not panic or access out-of-bounds.
+	node := &yaml.Node{
+		Kind: yaml.MappingNode,
+		Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "foo"},
+			{Kind: yaml.ScalarNode, Value: "bar"},
+			{Kind: yaml.ScalarNode, Value: "orphan"}, // no value pair
+		},
+	}
+
+	// Should find "foo" -> "bar" normally.
+	if v := findMappingValue(node, "foo"); v == nil || v.Value != "bar" {
+		t.Errorf("expected 'bar' for key 'foo', got %v", v)
+	}
+	// Should not find "orphan" (no value pair due to odd length).
+	if v := findMappingValue(node, "orphan"); v != nil {
+		t.Errorf("expected nil for orphaned key, got %v", v)
+	}
+	// Should not find a missing key.
+	if v := findMappingValue(node, "missing"); v != nil {
+		t.Errorf("expected nil for missing key, got %v", v)
+	}
+}
+
+func TestParseIndex_Overflow(t *testing.T) {
+	// A very large number that overflows MaxInt32 should return -1.
+	got := parseIndex("99999999999")
+	if got != -1 {
+		t.Errorf("parseIndex(\"99999999999\") = %d, want -1", got)
+	}
+}
+
+func TestParseIndex_LeadingZeros(t *testing.T) {
+	// Leading zeros are technically valid digits, parseIndex should handle them.
+	got := parseIndex("007")
+	if got != 7 {
+		t.Errorf("parseIndex(\"007\") = %d, want 7", got)
+	}
+}
+
 func TestResolveNodeLine_ScalarRoot(t *testing.T) {
 	// A document whose root is a scalar (unusual but valid YAML).
 	doc := &yaml.Node{

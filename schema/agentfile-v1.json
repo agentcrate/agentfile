@@ -30,7 +30,7 @@
       "properties": {
         "base_image": {
           "type": "string",
-          "description": "Override the default base image (agentcrate/base:latest). Required when\nthe build section is present."
+          "description": "Override the default base image (agentcrate/base:latest). Required when\nthe build section is present.\nDocker image reference. Server-side validation should enforce format (registry/image:tag) and max length."
         }
       },
       "additionalProperties": false,
@@ -64,7 +64,7 @@
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-          "description": "Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars."
+          "description": "Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars.\nNOTE: Commas in jsonschema patterns must be escaped as \\, because the struct tag parser treats commas as delimiters."
         },
         "version": {
           "type": "string",
@@ -120,7 +120,7 @@
         "model": {
           "type": "string",
           "pattern": "^[a-z0-9-]+/[a-z0-9._-]+$",
-          "description": "Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3)."
+          "description": "Provider-qualified model identifier (e.g., anthropic/claude-3.5-sonnet, openai/gpt-4o, ollama/llama3).\nProvider and model names must be lowercase."
         },
         "temperature": {
           "type": "number",
@@ -266,7 +266,7 @@
         },
         "config": {
           "type": "object",
-          "description": "Skill-specific configuration key-value pairs."
+          "description": "Skill-specific configuration key-value pairs.\nArbitrary key-value configuration. Server-side validation should enforce maxProperties and depth limits."
         },
         "command": {
           "type": "string",

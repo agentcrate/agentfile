@@ -26,6 +26,28 @@ func ResolveProfile(af *Agentfile, profileName string) (*Agentfile, error) {
 	// Shallow-copy the Agentfile so we don't mutate the original.
 	resolved := *af
 
+	// Deep-copy mutable slice and pointer fields to prevent shared references.
+	if resolved.Build != nil {
+		b := *resolved.Build
+		resolved.Build = &b
+	}
+
+	if resolved.Skills != nil {
+		skills := make([]Skill, len(resolved.Skills))
+		copy(skills, resolved.Skills)
+		resolved.Skills = skills
+	}
+
+	resolved.Brain.Models = append([]ModelConfig(nil), resolved.Brain.Models...)
+
+	if resolved.Policies != nil {
+		p2 := *resolved.Policies
+		p2.AllowedDomains = append([]string(nil), p2.AllowedDomains...)
+		p2.HumanInTheLoop = append([]HITLRule(nil), p2.HumanInTheLoop...)
+		p2.ToolPermissions = append([]ToolPermission(nil), p2.ToolPermissions...)
+		resolved.Policies = &p2
+	}
+
 	// Merge brain.default override.
 	if p.Brain != nil {
 		brain := resolved.Brain

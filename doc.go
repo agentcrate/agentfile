@@ -9,7 +9,10 @@
 //
 //	import "github.com/agentcrate/agentfile"
 //
-//	data, _ := os.ReadFile("Agentfile")
+//	data, err := os.ReadFile("Agentfile")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //	result, err := agentfile.Parse(data)
 //	if err != nil {
 //	    log.Fatal(err)

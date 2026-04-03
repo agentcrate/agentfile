@@ -379,8 +379,87 @@ func TestParseFile_TooLarge(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for oversized file")
 	}
-	if !strings.Contains(err.Error(), "too large") {
-		t.Errorf("expected 'too large' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("expected 'exceeds maximum size' in error, got: %v", err)
+	}
+}
+
+// --- Size limit tests ---
+
+func TestParseFile_TooLarge_LimitReader(t *testing.T) {
+	// Verify ParseFile rejects files exceeding maxAgentfileSize using LimitReader
+	// (no TOCTOU race with os.Stat).
+	tmp := t.TempDir()
+	path := tmp + "/oversized.yaml"
+	large := make([]byte, 1<<20+1) // 1 byte over the 1 MB limit
+	if err := os.WriteFile(path, large, 0644); err != nil {
+		t.Fatalf("writing temp file: %v", err)
+	}
+	_, err := agentfile.ParseFile(path)
+	if err == nil {
+		t.Fatal("expected error for oversized file")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("expected 'exceeds maximum size' in error, got: %v", err)
+	}
+}
+
+func TestParse_DataExceedsMaxSize(t *testing.T) {
+	// Parse must reject data larger than maxAgentfileSize (1 MB).
+	large := make([]byte, 1<<20+1)
+	_, err := agentfile.Parse(large)
+	if err == nil {
+		t.Fatal("expected error for oversized data passed to Parse")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Errorf("expected 'exceeds maximum size' in error, got: %v", err)
+	}
+}
+
+// --- Duplicate skill name tests ---
+
+func TestParse_DuplicateSkillNames(t *testing.T) {
+	yaml := `
+version: "1"
+metadata:
+  name: dup-skill-agent
+  version: "1.0.0"
+  description: "Agent with duplicate skill names."
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+persona:
+  system_prompt: "You are a test agent."
+skills:
+  - name: web-search
+    type: mcp
+    source: cratehub.ai/tools/web-search
+  - name: web-search
+    type: http
+    source: https://example.com/v1
+`
+	result, err := agentfile.Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsValid() {
+		t.Fatal("expected validation errors for duplicate skill names")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Message, "duplicate skill name") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected error about duplicate skill name")
+		for _, e := range result.Errors {
+			t.Logf("  got: %s: %s", e.Field, e.Message)
+		}
 	}
 }
 
