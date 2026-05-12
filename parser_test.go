@@ -503,3 +503,26 @@ func TestParse_LineNumbers_SemanticErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestParse_BaseImage_RegistryWithPort(t *testing.T) {
+	// Regression for gitar finding on PR #20: localhost:5000/foo:tag must
+	// be accepted (registries with explicit ports are common in CI and
+	// air-gapped setups).
+	cases := []string{
+		"localhost:5000/foo:tag",
+		"registry.example.com:5000/path/image:tag",
+		"my-registry.io:443/team/agent@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	}
+	for _, image := range cases {
+		t.Run(image, func(t *testing.T) {
+			data := []byte("version: \"1\"\nmetadata:\n  name: a\n  version: \"1.0.0\"\n  description: test\nbrain:\n  default: m\n  models:\n    - {name: m, model: openai/gpt-4o}\npersona:\n  system_prompt: x\nbuild:\n  base_image: \"" + image + "\"\n")
+			result, err := agentfile.Parse(data)
+			if err != nil {
+				t.Fatalf("Parse returned I/O error: %v", err)
+			}
+			if !result.IsValid() {
+				t.Fatalf("expected %s to be valid; errors: %v", image, result.Errors)
+			}
+		})
+	}
+}

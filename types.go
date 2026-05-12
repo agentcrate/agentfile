@@ -111,7 +111,9 @@ type Build struct {
 	//	agentcrate/base:latest
 	//	custom-registry.io/agent-base:1.2.0
 	//	ghcr.io/org/image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-	BaseImage string `yaml:"base_image" json:"base_image" jsonschema:"required,minLength=1,maxLength=255,pattern=^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[a-zA-Z0-9._-]+)?(@sha256:[a-f0-9]{64})?$"`
+	//	localhost:5000/foo:tag
+	//	registry.example.com:5000/path/image:tag
+	BaseImage string `yaml:"base_image" json:"base_image" jsonschema:"required,minLength=1,maxLength=255,pattern=^([a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?/)?[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[a-zA-Z0-9._-]+)?(@sha256:[a-f0-9]{64})?$"`
 }
 
 // Policies defines security constraints and governance rules.
