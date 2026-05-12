@@ -10,9 +10,19 @@ linters:
   settings:
     revive:
       rules:
+        # `exported` enforces godoc on public surface. agentfile is consumed
+        # by `crate` and `crated`, so doc-comment regressions break two
+        # downstream contracts; tighten the rule beyond defaults:
+        #   - checkPrivateReceivers: also flag undocumented private receivers
+        #     when their method has an exported name.
+        #   - sayRepetitiveInsteadOfStutters: keep the "Foo.Foo" stutter
+        #     warning but use the clearer wording.
+        #   - checkPublicInterface: enforce comments on exported interfaces.
         - name: exported
           arguments:
             - "checkPrivateReceivers"
+            - "sayRepetitiveInsteadOfStutters"
+            - "checkPublicInterface"
         - name: blank-imports
         - name: context-as-argument
         - name: dot-imports
@@ -38,12 +48,12 @@ linters:
 
   exclusions:
     rules:
+      # Narrow the test-file relaxation: only suppress the specific noise we
+      # know is harmless rather than disabling whole linters. Blanket
+      # `errcheck`/`gocritic` exclusion was masking real bugs (ignored
+      # Close() in cleanup, gocritic dupSubExpr in assertions, t.Setenv
+      # error swallow).
       - path: _test\.go
         linters:
           - errcheck
-          - gocritic
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
+        text: 'Close\(\)|Setenv'

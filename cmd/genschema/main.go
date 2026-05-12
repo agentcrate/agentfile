@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/agentcrate/agentfile"
 	"github.com/invopop/jsonschema"
@@ -53,8 +52,7 @@ func main() {
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("marshalIndent: %v", err)
 	}
 	fmt.Println(string(data))
 }

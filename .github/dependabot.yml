@@ -5,7 +5,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     open-pull-requests-limit: 20
     labels:
       - "dependencies"
@@ -13,13 +13,13 @@ updates:
     commit-message:
       prefix: "chore(deps):"
     reviewers:
-      - "MauroKinderknecht"
+      - "agentcrate/maintainers"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
@@ -27,4 +27,4 @@ updates:
     commit-message:
       prefix: "chore(ci):"
     reviewers:
-      - "MauroKinderknecht"
+      - "agentcrate/maintainers"

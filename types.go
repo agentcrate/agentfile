@@ -118,6 +118,12 @@ type Policies struct {
 	MaxTurns *int `yaml:"max_turns,omitempty" json:"max_turns,omitempty" jsonschema:"minimum=1"`
 }
 
+// TODO(audit): HITLRule.Tool should be renamed to Skill (yaml/json "skill") to
+// match ToolPermission.Skill and the project's consistent use of "skill" as
+// the unit of capability. That rename is a breaking change to the YAML format
+// and the JSON schema, so it has been deferred and must be coordinated with
+// crate + crated.
+
 // HITLRule defines a human-in-the-loop approval requirement.
 type HITLRule struct {
 	// Skill name that requires human approval.
@@ -125,6 +131,26 @@ type HITLRule struct {
 	// Condition expression for when HITL is required (e.g., "always", "cost > 100").
 	Condition string `yaml:"condition" json:"condition" jsonschema:"required"`
 }
+
+// HITL condition sentinels. These are the keyword forms accepted by
+// CheckPolicies and validateHITLCondition; they are exported so downstream
+// consumers (crate, crated) can reference them by name instead of duplicating
+// string literals.
+//
+// Parameterized forms append ":<arg>" after the keyword, e.g.,
+// HITLConditionCostAbove + ":100" → "cost_above:100".
+//
+// The JSON Schema deliberately leaves HITLRule.Condition free-form for now —
+// tightening it (e.g., minLength, or an enum/pattern union) would be a
+// schema-level change and is tracked as a follow-up so downstream parsers
+// can migrate without coordinated breakage.
+const (
+	HITLConditionAlways      = "always"
+	HITLConditionNever       = "never"
+	HITLConditionOnFailure   = "on_failure"
+	HITLConditionSideEffects = "side_effects"
+	HITLConditionCostAbove   = "cost_above"
+)
 
 // ToolPermission defines fine-grained permissions for a skill.
 type ToolPermission struct {

@@ -2,6 +2,7 @@ package agentfile
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -56,9 +57,19 @@ func TestResolveProfile_EmptyName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Should return the same pointer unmodified.
-	if resolved != af {
-		t.Error("expected same pointer for empty profile name")
+	// ResolveProfile must return a defensive copy in all paths so callers can
+	// safely mutate the result without corrupting the input. The empty/"default"
+	// path used to alias the input pointer; the contract is now uniform.
+	if resolved == af {
+		t.Fatal("expected defensive copy for empty profile name; got aliased input pointer")
+	}
+	if resolved.Brain.Default != af.Brain.Default {
+		t.Errorf("expected brain.default copied, got %q want %q", resolved.Brain.Default, af.Brain.Default)
+	}
+	// Mutating the returned copy must not affect the original.
+	resolved.Brain.Default = "mutated"
+	if af.Brain.Default == "mutated" {
+		t.Error("mutating resolved leaked into original Agentfile")
 	}
 }
 
@@ -68,9 +79,56 @@ func TestResolveProfile_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// "default" is a no-op — returns base config.
-	if resolved != af {
-		t.Error("expected same pointer for 'default' profile")
+	// "default" is a logical no-op but still returns a defensive copy.
+	if resolved == af {
+		t.Fatal("expected defensive copy for 'default' profile; got aliased input pointer")
+	}
+	resolved.Brain.Default = "mutated"
+	if af.Brain.Default == "mutated" {
+		t.Error("mutating resolved leaked into original Agentfile")
+	}
+}
+
+// TestResolveProfile_ProfilePoliciesDeepCopied verifies that when a profile
+// provides its own Policies block, the resolved Policies pointer is a deep
+// copy of the profile's policies, not the same pointer (regression for the
+// previously-aliased profile-supplied policies bug).
+func TestResolveProfile_ProfilePoliciesDeepCopied(t *testing.T) {
+	af := baseAgentfile()
+	// Replace the prod profile with one whose policies have populated slices
+	// so we can verify those slices are independent.
+	prodPolicies := &Policies{
+		AllowedDomains:  []string{"prod.example.com"},
+		ToolPermissions: []ToolPermission{{Skill: "web-search", Allow: []string{"read"}}},
+		HumanInTheLoop:  []HITLRule{{Tool: "web-search", Condition: "always"}},
+	}
+	af.Profiles["prod"] = Profile{
+		Brain:    &ProfileBrain{Default: "gpt"},
+		Policies: prodPolicies,
+	}
+
+	resolved, err := ResolveProfile(af, "prod")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resolved.Policies == prodPolicies {
+		t.Fatal("expected deep copy; resolved.Policies aliases the profile's policies pointer")
+	}
+
+	// Mutating the resolved policies must not bleed into the original profile.
+	resolved.Policies.AllowedDomains = append(resolved.Policies.AllowedDomains, "extra.example.com")
+	resolved.Policies.ToolPermissions[0].Allow = append(resolved.Policies.ToolPermissions[0].Allow, "write")
+	resolved.Policies.HumanInTheLoop[0].Condition = "never"
+
+	if len(prodPolicies.AllowedDomains) != 1 || prodPolicies.AllowedDomains[0] != "prod.example.com" {
+		t.Errorf("AllowedDomains leaked into original profile: %v", prodPolicies.AllowedDomains)
+	}
+	if len(prodPolicies.ToolPermissions[0].Allow) != 1 {
+		t.Errorf("ToolPermissions[0].Allow leaked into original profile: %v", prodPolicies.ToolPermissions[0].Allow)
+	}
+	if prodPolicies.HumanInTheLoop[0].Condition != "always" {
+		t.Errorf("HumanInTheLoop[0].Condition leaked into original profile: %q", prodPolicies.HumanInTheLoop[0].Condition)
 	}
 }
 
@@ -204,8 +262,8 @@ func TestResolveProfile_NotFound(t *testing.T) {
 	if len(pnf.Available) != 4 {
 		t.Fatalf("expected 4 available profiles, got %d: %v", len(pnf.Available), pnf.Available)
 	}
-	if pnf.Available[0] != "default" || pnf.Available[1] != "dev" || pnf.Available[2] != "prod" || pnf.Available[3] != "staging" {
-		t.Errorf("expected [default, dev, prod, staging], got %v", pnf.Available)
+	if want := []string{"default", "dev", "prod", "staging"}; !slices.Equal(pnf.Available, want) {
+		t.Errorf("expected %v, got %v", want, pnf.Available)
 	}
 
 	// Error message should be helpful.

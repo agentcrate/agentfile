@@ -65,13 +65,16 @@ func (r *PolicyResult) Warnings() []PolicyFinding {
 	return warns
 }
 
-// validHITLConditions lists the recognized HITL condition keywords.
-var validHITLConditions = map[string]bool{
-	"always":       true,
-	"never":        true,
-	"on_failure":   true,
-	"cost_above":   true,
-	"side_effects": true,
+// validHITLConditions is the set of recognized HITL condition keywords.
+// Using map[string]struct{} expresses set semantics without per-entry waste.
+// Sourced from the HITLCondition* constants in types.go so the validator and
+// the public constants cannot drift.
+var validHITLConditions = map[string]struct{}{
+	HITLConditionAlways:      {},
+	HITLConditionNever:       {},
+	HITLConditionOnFailure:   {},
+	HITLConditionCostAbove:   {},
+	HITLConditionSideEffects: {},
 }
 
 // CheckPolicies performs policy consistency checks on a parsed Agentfile.
@@ -167,13 +170,13 @@ func validateHITLCondition(condition string) error {
 	parts := strings.SplitN(condition, ":", 2)
 	keyword := parts[0]
 
-	if !validHITLConditions[keyword] {
+	if _, ok := validHITLConditions[keyword]; !ok {
 		return fmt.Errorf("unknown HITL condition keyword: '%s' (valid: %s)",
 			keyword, validHITLKeywords())
 	}
 
 	// Parameterized conditions must have a non-empty value.
-	if keyword == "cost_above" {
+	if keyword == HITLConditionCostAbove {
 		if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
 			return fmt.Errorf("'cost_above' condition requires a numeric threshold (e.g., cost_above:100)")
 		}
