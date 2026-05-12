@@ -53,6 +53,32 @@ func TestSchemaUpToDate(t *testing.T) {
 	got := strings.ReplaceAll(string(agentfile.SchemaV1), "\r\n", "\n")
 
 	if want != got {
-		t.Fatal("schema/agentfile-v1.json is out of date with types.go — run `make schema` to regenerate")
+		// Surface the first differing region so a CI failure is debuggable
+		// without re-running `make schema` locally.
+		t.Fatalf("schema/agentfile-v1.json is out of date with types.go — run `make schema` to regenerate.\nfirst-diff:\n  want: %q\n   got: %q",
+			firstDiffSnippet(want, got, 200),
+			firstDiffSnippet(got, want, 200))
 	}
+}
+
+// firstDiffSnippet returns up to maxLen characters of a starting at the first
+// byte that differs from b. If a and b are identical, the empty string is
+// returned. Snippets are clipped to keep CI logs compact.
+func firstDiffSnippet(a, b string, maxLen int) string {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	if i == len(a) && i == len(b) {
+		return ""
+	}
+	end := i + maxLen
+	if end > len(a) {
+		end = len(a)
+	}
+	return a[i:end]
 }

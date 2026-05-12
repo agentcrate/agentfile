@@ -189,6 +189,44 @@ func TestParseIndex_LeadingZeros(t *testing.T) {
 	}
 }
 
+func TestBuildLineIndex_AgreesWithResolveNodeLine(t *testing.T) {
+	yamlContent := `metadata:
+  name: test-agent
+  version: "1.0.0"
+skills:
+  - name: search
+    source: cratehub.ai/tools/web-search
+  - name: mcp-tool
+    source: not-a-uri
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("failed to parse YAML: %v", err)
+	}
+	idx := buildLineIndex(&doc)
+
+	paths := []string{
+		"(root)",
+		"",
+		"metadata",
+		"metadata.name",
+		"skills",
+		"skills[0].name",
+		"skills[1].source",
+	}
+	for _, p := range paths {
+		want := resolveNodeLine(&doc, p)
+		got := idx.lookup(&doc, p)
+		if got != want {
+			t.Errorf("lineIndex.lookup(%q) = %d, want %d (from resolveNodeLine)", p, got, want)
+		}
+	}
+	// Unknown paths fall through to resolveNodeLine and return 0.
+	if got := idx.lookup(&doc, "nonexistent"); got != 0 {
+		t.Errorf("lineIndex.lookup(unknown) = %d, want 0", got)
+	}
+}
+
 func TestResolveNodeLine_ScalarRoot(t *testing.T) {
 	// A document whose root is a scalar (unusual but valid YAML).
 	doc := &yaml.Node{

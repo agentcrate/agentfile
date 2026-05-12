@@ -95,9 +95,13 @@ func Parse(data []byte) (*ParseResult, error) {
 		return nil, fmt.Errorf("schema validation: %w", err)
 	}
 
-	// Resolve source line numbers from the YAML AST.
+	// Resolve source line numbers from the YAML AST. Build a single dot-path
+	// → line map up front so each error is an O(1) lookup instead of an
+	// O(depth) walk from the document root. The semantic-validation phase
+	// reuses the same index for the same reason.
+	lineIdx := buildLineIndex(&doc)
 	for i := range validationErrors {
-		validationErrors[i].Line = resolveNodeLine(&doc, validationErrors[i].Field)
+		validationErrors[i].Line = lineIdx.lookup(&doc, validationErrors[i].Field)
 	}
 
 	result := &ParseResult{
@@ -119,7 +123,7 @@ func Parse(data []byte) (*ParseResult, error) {
 	// Phase 4: Semantic validation (cross-field checks the schema can't express).
 	// Only runs on schema-valid input — semantic checks assume well-formed data.
 	if len(validationErrors) == 0 {
-		semanticErrors := validateSemantics(&af, &doc)
+		semanticErrors := validateSemantics(&af, &doc, lineIdx)
 		result.Errors = append(result.Errors, semanticErrors...)
 	}
 
@@ -243,7 +247,9 @@ func isNumeric(s string) bool {
 }
 
 // validateSemantics performs cross-field validation that JSON Schema can't express.
-func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
+// lineIdx is a pre-built dot-path → source line index used to attach a 1-indexed
+// line number to every error without re-walking the YAML AST per call.
+func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []ValidationError {
 	var errs []ValidationError
 
 	// Build a set of declared model names.
@@ -259,7 +265,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 			Field:   field,
 			Message: "references undeclared model name",
 			Value:   fmt.Sprintf("%q", af.Brain.Default),
-			Line:    resolveNodeLine(doc, field),
+			Line:    lineIdx.lookup(doc, field),
 		})
 	}
 
@@ -272,7 +278,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				Field:   field,
 				Message: "duplicate model name",
 				Value:   fmt.Sprintf("%q", m.Name),
-				Line:    resolveNodeLine(doc, field),
+				Line:    lineIdx.lookup(doc, field),
 			})
 		}
 		seen[m.Name] = true
@@ -286,29 +292,25 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				Field:   field,
 				Message: "references undeclared model name",
 				Value:   fmt.Sprintf("%q", profile.Brain.Default),
-				Line:    resolveNodeLine(doc, field),
+				Line:    lineIdx.lookup(doc, field),
 			})
 		}
 	}
 
-	// Check duplicate skill names.
-	seenSkills := make(map[string]bool, len(af.Skills))
+	// Check duplicate skill names while building the declared-name set.
+	// One pass: detect dupes, populate the lookup used by the policy-reference
+	// checks below. Two separate maps would carry identical values.
+	skillNames := make(map[string]bool, len(af.Skills))
 	for i := range af.Skills {
-		if seenSkills[af.Skills[i].Name] {
+		if skillNames[af.Skills[i].Name] {
 			field := fmt.Sprintf("skills[%d].name", i)
 			errs = append(errs, ValidationError{
 				Field:   field,
 				Message: "duplicate skill name",
 				Value:   fmt.Sprintf("%q", af.Skills[i].Name),
-				Line:    resolveNodeLine(doc, field),
+				Line:    lineIdx.lookup(doc, field),
 			})
 		}
-		seenSkills[af.Skills[i].Name] = true
-	}
-
-	// Build a set of declared skill names.
-	skillNames := make(map[string]bool, len(af.Skills))
-	for i := range af.Skills {
 		skillNames[af.Skills[i].Name] = true
 	}
 
@@ -321,7 +323,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 					Field:   field,
 					Message: "references undeclared skill",
 					Value:   fmt.Sprintf("%q", tp.Skill),
-					Line:    resolveNodeLine(doc, field),
+					Line:    lineIdx.lookup(doc, field),
 				})
 			}
 		}
@@ -334,7 +336,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 					Field:   field,
 					Message: "references undeclared skill",
 					Value:   fmt.Sprintf("%q", hitl.Tool),
-					Line:    resolveNodeLine(doc, field),
+					Line:    lineIdx.lookup(doc, field),
 				})
 			}
 		}
@@ -351,7 +353,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 					Field:   field,
 					Message: fmt.Sprintf("%s skill source must be a valid http/https URL", af.Skills[i].Type),
 					Value:   fmt.Sprintf("%q", af.Skills[i].Source),
-					Line:    resolveNodeLine(doc, field),
+					Line:    lineIdx.lookup(doc, field),
 				})
 			}
 		case "stdio":
@@ -361,14 +363,14 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				errs = append(errs, ValidationError{
 					Field:   fmt.Sprintf("skills[%d].command", i),
 					Message: "stdio skill must have a command",
-					Line:    resolveNodeLine(doc, fmt.Sprintf("skills[%d].name", i)),
+					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].name", i)),
 				})
 			}
 			if len(af.Skills[i].Args) == 0 {
 				errs = append(errs, ValidationError{
 					Field:   fmt.Sprintf("skills[%d].args", i),
 					Message: "stdio skill must have non-empty args",
-					Line:    resolveNodeLine(doc, fmt.Sprintf("skills[%d].name", i)),
+					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].name", i)),
 				})
 			}
 		case "mcp":
@@ -377,7 +379,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node) []ValidationError {
 				errs = append(errs, ValidationError{
 					Field:   field,
 					Message: "mcp skill source must be a non-empty registry identifier",
-					Line:    resolveNodeLine(doc, field),
+					Line:    lineIdx.lookup(doc, field),
 				})
 			}
 		}
@@ -463,6 +465,80 @@ func resolveNodeLine(doc *yaml.Node, dotPath string) int {
 		return node.Line
 	}
 	return 0
+}
+
+// lineIndex maps dot-notation field paths to their 1-indexed source line
+// numbers. Building it once amortizes the cost of locating every error's
+// source line, replacing an O(N×depth) per-error walk with O(1) lookups.
+type lineIndex struct {
+	rootLine int
+	paths    map[string]int
+}
+
+// lookup returns the 1-indexed source line for dotPath. The (*yaml.Node)
+// argument is kept as a safety fallback for any path that wasn't materialized
+// into the index (defensive — the index is exhaustive in practice).
+func (l *lineIndex) lookup(doc *yaml.Node, dotPath string) int {
+	if l == nil {
+		return resolveNodeLine(doc, dotPath)
+	}
+	if dotPath == "" || dotPath == "(root)" {
+		return l.rootLine
+	}
+	if line, ok := l.paths[dotPath]; ok {
+		return line
+	}
+	// Fallback for paths the walker didn't visit (e.g., unexpected shapes).
+	return resolveNodeLine(doc, dotPath)
+}
+
+// buildLineIndex walks the YAML AST once, recording the source line for
+// every reachable mapping key and sequence element keyed by the same
+// dot-notation syntax used in ValidationError.Field.
+func buildLineIndex(doc *yaml.Node) *lineIndex {
+	idx := &lineIndex{paths: make(map[string]int)}
+	if doc == nil {
+		return idx
+	}
+	root := doc
+	if root.Kind == yaml.DocumentNode {
+		if len(root.Content) == 0 {
+			return idx
+		}
+		root = root.Content[0]
+	}
+	idx.rootLine = root.Line
+	walkLineIndex(root, "", idx.paths)
+	return idx
+}
+
+// walkLineIndex recursively records (path → line) for every key in a
+// mapping and every element in a sequence under prefix.
+func walkLineIndex(node *yaml.Node, prefix string, out map[string]int) {
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key := node.Content[i].Value
+			val := node.Content[i+1]
+			var path string
+			if prefix == "" {
+				path = key
+			} else {
+				path = prefix + "." + key
+			}
+			out[path] = val.Line
+			walkLineIndex(val, path, out)
+		}
+	case yaml.SequenceNode:
+		for i, child := range node.Content {
+			path := fmt.Sprintf("%s[%d]", prefix, i)
+			out[path] = child.Line
+			walkLineIndex(child, path, out)
+		}
+	}
 }
 
 // parseDotPath splits a dot-notation path like "skills[0].source" into

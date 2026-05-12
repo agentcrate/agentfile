@@ -11,11 +11,13 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=500']
 
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
+  # dnephin/pre-commit-golang is archived/unmaintained; tekwizely's fork is
+  # the maintained successor. go-vet is intentionally dropped here because
+  # golangci-lint already runs it in the same pre-commit pass.
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.4
     hooks:
       - id: go-fmt
-      - id: go-vet
       - id: go-mod-tidy
 
   - repo: https://github.com/golangci/golangci-lint
