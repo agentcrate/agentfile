@@ -32,7 +32,7 @@ policies:
     - sec.gov
     - slack.com
   human_in_the_loop:
-    - tool: slack-notify
+    - skill: slack-notify
       condition: always
   tool_permissions:
     - skill: sec-data

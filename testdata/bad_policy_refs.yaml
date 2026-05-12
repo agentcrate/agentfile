@@ -25,5 +25,5 @@ policies:
       allow:
         - read
   human_in_the_loop:
-    - tool: also-nonexistent
+    - skill: also-nonexistent
       condition: always

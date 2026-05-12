@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -66,10 +65,11 @@ func (r *PolicyResult) Warnings() []PolicyFinding {
 }
 
 // validHITLConditions is the set of recognized HITL condition keywords.
-// Using map[string]struct{} expresses set semantics without per-entry waste.
-// Sourced from the HITLCondition* constants in types.go so the validator and
-// the public constants cannot drift.
-var validHITLConditions = map[string]struct{}{
+// Using map[HITLCondition]struct{} expresses set semantics without per-entry
+// waste. Sourced from the HITLCondition* constants in types.go so the
+// validator and the public constants cannot drift; the JSON Schema enum on
+// HITLRule.Condition is derived from the same set via struct-tag annotations.
+var validHITLConditions = map[HITLCondition]struct{}{
 	HITLConditionAlways:      {},
 	HITLConditionNever:       {},
 	HITLConditionOnFailure:   {},
@@ -131,60 +131,48 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]bool, result *Pol
 	}
 }
 
-// checkHITLRules validates human_in_the_loop rules: tool references and condition syntax.
+// checkHITLRules validates human_in_the_loop rules: skill references and
+// condition values. Condition values are also enforced at parse time via the
+// JSON Schema enum; this defense-in-depth catches struct values constructed
+// in Go that bypass the parser.
 func checkHITLRules(af *Agentfile, skillNames map[string]bool, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
-		// Check tool reference.
-		if !skillNames[hitl.Tool] {
+		// Check skill reference.
+		if !skillNames[hitl.Skill] {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
-				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].tool", i),
-				Message:  fmt.Sprintf("Policy references unknown skill: '%s'", hitl.Tool),
-				Value:    hitl.Tool,
+				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].skill", i),
+				Message:  fmt.Sprintf("Policy references unknown skill: '%s'", hitl.Skill),
+				Value:    hitl.Skill,
 			})
 		}
 
-		// Validate condition syntax.
+		// Validate condition value.
 		if err := validateHITLCondition(hitl.Condition); err != nil {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "invalid-hitl-condition",
 				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].condition", i),
 				Message:  err.Error(),
-				Value:    hitl.Condition,
+				Value:    string(hitl.Condition),
 			})
 		}
 	}
 }
 
-// validateHITLCondition checks that a HITL condition string has valid syntax.
-// Conditions are keyword-based: "always", "never", "on_failure", "side_effects",
-// or parameterized like "cost_above:100".
-func validateHITLCondition(condition string) error {
+// validateHITLCondition checks that a HITL condition is one of the five
+// recognized keywords. The schema enforces the same enum at parse time, but
+// this function exists so an Agentfile constructed directly in Go (bypassing
+// parse) is still validated.
+func validateHITLCondition(condition HITLCondition) error {
 	if condition == "" {
 		return fmt.Errorf("HITL condition must not be empty")
 	}
-
-	// Check for parameterized conditions (e.g., "cost_above:100").
-	parts := strings.SplitN(condition, ":", 2)
-	keyword := parts[0]
-
-	if _, ok := validHITLConditions[keyword]; !ok {
-		return fmt.Errorf("unknown HITL condition keyword: '%s' (valid: %s)",
-			keyword, validHITLKeywords())
+	if _, ok := validHITLConditions[condition]; !ok {
+		return fmt.Errorf("unknown HITL condition: %q (valid: %s)",
+			string(condition), validHITLKeywords())
 	}
-
-	// Parameterized conditions must have a non-empty value.
-	if keyword == HITLConditionCostAbove {
-		if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
-			return fmt.Errorf("'cost_above' condition requires a numeric threshold (e.g., cost_above:100)")
-		}
-		if _, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64); err != nil {
-			return fmt.Errorf("'cost_above' threshold must be numeric (got %q)", parts[1])
-		}
-	}
-
 	return nil
 }
 
@@ -192,7 +180,7 @@ func validateHITLCondition(condition string) error {
 func validHITLKeywords() string {
 	keys := make([]string, 0, len(validHITLConditions))
 	for k := range validHITLConditions {
-		keys = append(keys, k)
+		keys = append(keys, string(k))
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ", ")

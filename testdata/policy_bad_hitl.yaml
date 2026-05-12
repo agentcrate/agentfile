@@ -24,7 +24,7 @@ skills:
 
 policies:
   human_in_the_loop:
-    - tool: search
+    - skill: search
       condition: invalid_keyword
-    - tool: data-tool
+    - skill: data-tool
       condition: "cost_above:"
