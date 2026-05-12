@@ -63,7 +63,10 @@ func deepCopyAgentfile(af *Agentfile) *Agentfile {
 	}
 	if af.Skills != nil {
 		skills := make([]Skill, len(af.Skills))
-		copy(skills, af.Skills)
+		for i := range af.Skills {
+			skills[i] = af.Skills[i]
+			deepCopySkillRefs(&skills[i])
+		}
 		resolved.Skills = skills
 	}
 	resolved.Brain.Models = append([]ModelConfig(nil), af.Brain.Models...)
@@ -73,7 +76,26 @@ func deepCopyAgentfile(af *Agentfile) *Agentfile {
 	return &resolved
 }
 
-// deepCopyPolicies clones a Policies value and all of its slice fields.
+// deepCopySkillRefs clones a Skill's mutable reference fields (Args, Env,
+// Config) in place so the Skill can be mutated without affecting the source.
+// The Config map values are not recursively cloned — callers must treat nested
+// map/slice values as immutable, matching the JSON-style "arbitrary config"
+// contract. Takes a pointer because Skill is heavy (~136 bytes).
+func deepCopySkillRefs(s *Skill) {
+	s.Args = append([]string(nil), s.Args...)
+	s.Env = append([]string(nil), s.Env...)
+	if s.Config != nil {
+		cfg := make(map[string]any, len(s.Config))
+		for k, v := range s.Config {
+			cfg[k] = v
+		}
+		s.Config = cfg
+	}
+}
+
+// deepCopyPolicies clones a Policies value and all of its slice fields,
+// including each ToolPermission's Allow slice (which is itself a reference
+// type and must be cloned to break aliasing on element-level writes).
 // MaxTokens/MaxTurns are *int — these are not deep-copied because the pointed-to
 // int is treated as immutable by callers; if that changes, deep-copy here too.
 func deepCopyPolicies(p *Policies) *Policies {
@@ -83,7 +105,14 @@ func deepCopyPolicies(p *Policies) *Policies {
 	out := *p
 	out.AllowedDomains = append([]string(nil), p.AllowedDomains...)
 	out.HumanInTheLoop = append([]HITLRule(nil), p.HumanInTheLoop...)
-	out.ToolPermissions = append([]ToolPermission(nil), p.ToolPermissions...)
+	if p.ToolPermissions != nil {
+		tps := make([]ToolPermission, len(p.ToolPermissions))
+		for i, tp := range p.ToolPermissions {
+			tp.Allow = append([]string(nil), tp.Allow...)
+			tps[i] = tp
+		}
+		out.ToolPermissions = tps
+	}
 	return &out
 }
 

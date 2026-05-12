@@ -346,6 +346,103 @@ func TestResolveProfile_DeepCopySlices(t *testing.T) {
 	}
 }
 
+// TestResolveProfile_DeepCopySkillFields verifies that the per-Skill mutable
+// reference fields (Args, Env, Config) are independently cloned, not aliased.
+// Direct element assignment is the discriminating mutation: append() may
+// reallocate and hide aliasing, but in-place writes cannot.
+func TestResolveProfile_DeepCopySkillFields(t *testing.T) {
+	af := baseAgentfile()
+	af.Skills = []Skill{
+		{
+			Name:   "shell",
+			Type:   "stdio",
+			Source: "/bin/sh",
+			Args:   []string{"-c", "echo hi"},
+			Env:    []string{"FOO=bar"},
+			Config: map[string]any{"timeout": 30},
+		},
+	}
+
+	resolved, err := ResolveProfile(af, "dev")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// In-place writes on the resolved Skill's reference fields must not bleed
+	// into the source Agentfile. append() can hide aliasing via reallocation;
+	// these direct writes cannot.
+	resolved.Skills[0].Args[0] = "mutated"
+	resolved.Skills[0].Env[0] = "MUTATED=1"
+	resolved.Skills[0].Config["timeout"] = 9999
+
+	if af.Skills[0].Args[0] != "-c" {
+		t.Errorf("Skill.Args aliased: original mutated to %q", af.Skills[0].Args[0])
+	}
+	if af.Skills[0].Env[0] != "FOO=bar" {
+		t.Errorf("Skill.Env aliased: original mutated to %q", af.Skills[0].Env[0])
+	}
+	if v, _ := af.Skills[0].Config["timeout"].(int); v != 30 {
+		t.Errorf("Skill.Config aliased: original mutated to %v", af.Skills[0].Config["timeout"])
+	}
+}
+
+// TestResolveProfile_DeepCopyToolPermissionAllow verifies that each
+// ToolPermission's Allow slice is independently cloned. The existing
+// AllowedDomains test uses append() which can reallocate; in-place element
+// assignment is the discriminating mutation that exposes aliasing.
+func TestResolveProfile_DeepCopyToolPermissionAllow(t *testing.T) {
+	af := baseAgentfile()
+	prodPolicies := &Policies{
+		ToolPermissions: []ToolPermission{
+			{Skill: "web-search", Allow: []string{"read", "list"}},
+		},
+	}
+	af.Profiles["prod"] = Profile{
+		Brain:    &ProfileBrain{Default: "gpt"},
+		Policies: prodPolicies,
+	}
+
+	resolved, err := ResolveProfile(af, "prod")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// In-place write into the resolved Allow slice — if it aliases the source,
+	// the original profile's ToolPermissions[0].Allow[0] will flip.
+	resolved.Policies.ToolPermissions[0].Allow[0] = "write"
+
+	if prodPolicies.ToolPermissions[0].Allow[0] != "read" {
+		t.Errorf("ToolPermission.Allow aliased: original mutated to %q",
+			prodPolicies.ToolPermissions[0].Allow[0])
+	}
+}
+
+// TestResolveProfile_DeepCopyBasePolicyToolPermissionAllow covers the same
+// aliasing for base (non-profile) policies, which flow through
+// deepCopyAgentfile → deepCopyPolicies.
+func TestResolveProfile_DeepCopyBasePolicyToolPermissionAllow(t *testing.T) {
+	af := baseAgentfile()
+	af.Policies = &Policies{
+		ToolPermissions: []ToolPermission{
+			{Skill: "web-search", Allow: []string{"read", "list"}},
+		},
+	}
+
+	// "dev" does not override policies, so resolved.Policies is a deep copy
+	// of af.Policies.
+	resolved, err := ResolveProfile(af, "dev")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resolved.Policies.ToolPermissions[0].Allow[0] = "write"
+
+	if af.Policies.ToolPermissions[0].Allow[0] != "read" {
+		t.Errorf("base ToolPermission.Allow aliased: original mutated to %q",
+			af.Policies.ToolPermissions[0].Allow[0])
+	}
+}
+
 func TestAvailableProfiles_Sorted(t *testing.T) {
 	af := baseAgentfile()
 	names := availableProfiles(af)
