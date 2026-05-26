@@ -137,14 +137,11 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result 
 	}
 }
 
-// checkHITLRules validates human_in_the_loop rules: skill references and
-// condition values. Condition values are also enforced at parse time via the
-// JSON Schema enum; this defense-in-depth catches struct values constructed
-// in Go that bypass the parser.
+// checkHITLRules validates human_in_the_loop rules: tool references and condition syntax.
 func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
-		// Check skill reference.
-		if _, ok := skillNames[hitl.Skill]; !ok {
+		// Check tool reference.
+		if _, ok := skillNames[hitl.Tool]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
