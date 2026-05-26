@@ -300,16 +300,14 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 	// The nil guard must wrap the map lookup: accessing profile.Brain.Default
 	// before checking profile.Brain != nil would panic on nil Brain pointers.
 	for name, profile := range af.Profiles {
-		if profile.Brain != nil {
-			if _, ok := modelNames[profile.Brain.Default]; !ok {
-				field := fmt.Sprintf("profiles.%s.brain.default", name)
-				errs = append(errs, ValidationError{
-					Field:   field,
-					Message: "references undeclared model name",
-					Value:   fmt.Sprintf("%q", profile.Brain.Default),
-					Line:    lineIdx.lookup(doc, field),
-				})
-			}
+		if _, ok := modelNames[profile.Brain.Default]; profile.Brain != nil && !ok {
+			field := fmt.Sprintf("profiles.%s.brain.default", name)
+			errs = append(errs, ValidationError{
+				Field:   field,
+				Message: "references undeclared model name",
+				Value:   fmt.Sprintf("%q", profile.Brain.Default),
+				Line:    lineIdx.lookup(doc, field),
+			})
 		}
 	}
 
@@ -346,8 +344,8 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 
 		// Check that human_in_the_loop skill refs are declared.
 		for i, hitl := range af.Policies.HumanInTheLoop {
-			if _, ok := skillNames[hitl.Skill]; !ok {
-				field := fmt.Sprintf("policies.human_in_the_loop[%d].skill", i)
+			if _, ok := skillNames[hitl.Tool]; !ok {
+				field := fmt.Sprintf("policies.human_in_the_loop[%d].tool", i)
 				errs = append(errs, ValidationError{
 					Field:   field,
 					Message: "references undeclared skill",
