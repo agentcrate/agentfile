@@ -102,18 +102,18 @@ func deepCopyPolicies(p *Policies) *Policies {
 	if p == nil {
 		return nil
 	}
-	out := *p
-	out.AllowedDomains = append([]string(nil), p.AllowedDomains...)
-	out.HumanInTheLoop = append([]HITLRule(nil), p.HumanInTheLoop...)
+	cp := *p
+	cp.AllowedDomains = append([]string(nil), p.AllowedDomains...)
+	cp.HumanInTheLoop = append([]HITLRule(nil), p.HumanInTheLoop...)
 	if p.ToolPermissions != nil {
 		tps := make([]ToolPermission, len(p.ToolPermissions))
 		for i, tp := range p.ToolPermissions {
 			tp.Allow = append([]string(nil), tp.Allow...)
 			tps[i] = tp
 		}
-		out.ToolPermissions = tps
+		cp.ToolPermissions = tps
 	}
-	return &out
+	return &cp
 }
 
 // ProfileNotFoundError is returned when a requested profile doesn't exist.

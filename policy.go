@@ -98,10 +98,7 @@ func CheckPolicies(af *Agentfile) *PolicyResult {
 	}
 
 	// Build skill name set for reference checks.
-	skillNames := make(map[string]bool, len(af.Skills))
-	for i := range af.Skills {
-		skillNames[af.Skills[i].Name] = true
-	}
+	skillNames := buildSkillNameSet(af.Skills)
 
 	// Check tool_permissions reference declared skills.
 	checkToolPermissions(af, skillNames, result)
@@ -116,10 +113,19 @@ func CheckPolicies(af *Agentfile) *PolicyResult {
 	return result
 }
 
+// buildSkillNameSet returns a set of declared skill names for O(1) membership checks.
+func buildSkillNameSet(skills []Skill) map[string]struct{} {
+	names := make(map[string]struct{}, len(skills))
+	for i := range skills {
+		names[skills[i].Name] = struct{}{}
+	}
+	return names
+}
+
 // checkToolPermissions verifies that all tool_permissions reference declared skill names.
-func checkToolPermissions(af *Agentfile, skillNames map[string]bool, result *PolicyResult) {
+func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, tp := range af.Policies.ToolPermissions {
-		if !skillNames[tp.Skill] {
+		if _, ok := skillNames[tp.Skill]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
@@ -132,10 +138,10 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]bool, result *Pol
 }
 
 // checkHITLRules validates human_in_the_loop rules: tool references and condition syntax.
-func checkHITLRules(af *Agentfile, skillNames map[string]bool, result *PolicyResult) {
+func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
 		// Check tool reference.
-		if !skillNames[hitl.Tool] {
+		if _, ok := skillNames[hitl.Tool]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",

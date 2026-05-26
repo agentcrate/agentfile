@@ -84,7 +84,7 @@ func Parse(data []byte) (*ParseResult, error) {
 
 	var raw any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing yaml: %w", err)
+		return nil, fmt.Errorf("parsing yaml to map: %w", err)
 	}
 
 	normalized := normalizeYAML(raw)
@@ -193,9 +193,9 @@ func validateSchema(data any) ([]ValidationError, error) {
 // flattenValidationErrors converts the nested jsonschema.ValidationError tree
 // into a flat list of ValidationError values.
 func flattenValidationErrors(err *jsonschema.ValidationError) []ValidationError {
-	var result []ValidationError
-	collectErrors(err, &result)
-	return result
+	var errs []ValidationError
+	collectErrors(err, &errs)
+	return errs
 }
 
 // TODO(i18n): Hardcoded to English for v1.
@@ -253,13 +253,13 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 	var errs []ValidationError
 
 	// Build a set of declared model names.
-	modelNames := make(map[string]bool, len(af.Brain.Models))
+	modelNames := make(map[string]struct{}, len(af.Brain.Models))
 	for _, m := range af.Brain.Models {
-		modelNames[m.Name] = true
+		modelNames[m.Name] = struct{}{}
 	}
 
 	// Check that brain.default references a declared model name.
-	if !modelNames[af.Brain.Default] {
+	if _, ok := modelNames[af.Brain.Default]; !ok {
 		field := "brain.default"
 		errs = append(errs, ValidationError{
 			Field:   field,
@@ -270,9 +270,9 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 	}
 
 	// Check duplicate model names in brain.models.
-	seen := make(map[string]bool, len(af.Brain.Models))
+	seen := make(map[string]struct{}, len(af.Brain.Models))
 	for i, m := range af.Brain.Models {
-		if seen[m.Name] {
+		if _, dup := seen[m.Name]; dup {
 			field := fmt.Sprintf("brain.models[%d].name", i)
 			errs = append(errs, ValidationError{
 				Field:   field,
@@ -281,12 +281,12 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 				Line:    lineIdx.lookup(doc, field),
 			})
 		}
-		seen[m.Name] = true
+		seen[m.Name] = struct{}{}
 	}
 
 	// Check that profile brain.default references a declared model name.
 	for name, profile := range af.Profiles {
-		if profile.Brain != nil && !modelNames[profile.Brain.Default] {
+		if _, ok := modelNames[profile.Brain.Default]; profile.Brain != nil && !ok {
 			field := fmt.Sprintf("profiles.%s.brain.default", name)
 			errs = append(errs, ValidationError{
 				Field:   field,
@@ -300,9 +300,9 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 	// Check duplicate skill names while building the declared-name set.
 	// One pass: detect dupes, populate the lookup used by the policy-reference
 	// checks below. Two separate maps would carry identical values.
-	skillNames := make(map[string]bool, len(af.Skills))
+	skillNames := make(map[string]struct{}, len(af.Skills))
 	for i := range af.Skills {
-		if skillNames[af.Skills[i].Name] {
+		if _, dup := skillNames[af.Skills[i].Name]; dup {
 			field := fmt.Sprintf("skills[%d].name", i)
 			errs = append(errs, ValidationError{
 				Field:   field,
@@ -311,13 +311,13 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 				Line:    lineIdx.lookup(doc, field),
 			})
 		}
-		skillNames[af.Skills[i].Name] = true
+		skillNames[af.Skills[i].Name] = struct{}{}
 	}
 
 	if af.Policies != nil {
 		// Check that tool_permissions reference declared skills.
 		for i, tp := range af.Policies.ToolPermissions {
-			if !skillNames[tp.Skill] {
+			if _, ok := skillNames[tp.Skill]; !ok {
 				field := fmt.Sprintf("policies.tool_permissions[%d].skill", i)
 				errs = append(errs, ValidationError{
 					Field:   field,
@@ -330,7 +330,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 
 		// Check that human_in_the_loop tools reference declared skills.
 		for i, hitl := range af.Policies.HumanInTheLoop {
-			if !skillNames[hitl.Tool] {
+			if _, ok := skillNames[hitl.Tool]; !ok {
 				field := fmt.Sprintf("policies.human_in_the_loop[%d].tool", i)
 				errs = append(errs, ValidationError{
 					Field:   field,
