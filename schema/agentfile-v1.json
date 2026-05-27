@@ -47,18 +47,11 @@
       "properties": {
         "skill": {
           "type": "string",
-          "description": "Skill name that requires human approval. Must match a declared skill."
+          "description": "Skill name that requires human approval."
         },
         "condition": {
           "type": "string",
-          "enum": [
-            "always",
-            "never",
-            "on_failure",
-            "side_effects",
-            "cost_above"
-          ],
-          "description": "Condition under which human approval is required. Closed enum — see\nHITLCondition for accepted values."
+          "description": "Condition expression for when HITL is required (e.g., \"always\", \"cost \u003e 100\")."
         }
       },
       "additionalProperties": false,

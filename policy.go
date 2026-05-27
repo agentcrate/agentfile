@@ -158,7 +158,7 @@ func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *Polic
 				Rule:     "invalid-hitl-condition",
 				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].condition", i),
 				Message:  err.Error(),
-				Value:    string(hitl.Condition),
+				Value:    hitl.Condition,
 			})
 		}
 	}
@@ -168,13 +168,13 @@ func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *Polic
 // recognized keywords. The schema enforces the same enum at parse time, but
 // this function exists so an Agentfile constructed directly in Go (bypassing
 // parse) is still validated.
-func validateHITLCondition(condition HITLCondition) error {
+func validateHITLCondition(condition string) error {
 	if condition == "" {
 		return fmt.Errorf("HITL condition must not be empty")
 	}
-	if _, ok := validHITLConditions[condition]; !ok {
+	if _, ok := validHITLConditions[HITLCondition(condition)]; !ok {
 		return fmt.Errorf("unknown HITL condition: %q (valid: %s)",
-			string(condition), validHITLKeywords())
+			condition, validHITLKeywords())
 	}
 	return nil
 }
@@ -243,7 +243,7 @@ func extractHost(source string) string {
 // The subdomain loop is O(N) over allowed_domains. In practice Agentfile
 // allowed_domains lists are small (single digits), so the linear scan is
 // acceptable. If large lists become common, consider a sorted-prefix index.
-func isDomainAllowed(host string, allowed map[string]bool) bool {
+func isDomainAllowed(host string, allowed map[string]struct{}) bool {
 	host = strings.ToLower(host)
 	// Exact match.
 	if _, ok := allowed[host]; ok {

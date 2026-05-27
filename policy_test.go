@@ -234,7 +234,7 @@ func TestCheckPolicies_ValidHITLConditions(t *testing.T) {
 			},
 			Policies: &agentfile.Policies{
 				HumanInTheLoop: []agentfile.HITLRule{
-					{Skill: "tool", Condition: cond},
+					{Skill: "tool", Condition: string(cond)},
 				},
 			},
 		}
