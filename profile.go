@@ -13,6 +13,11 @@ import (
 // profile name and the built-in "default" profile — so callers can freely
 // mutate the result without corrupting the input Agentfile.
 //
+// Caller contracts on the returned *Agentfile:
+//   - Policies.*int fields (MaxTokens, MaxTurns) are shallow-copied. Do not
+//     write through these pointers; replace them instead.
+//   - Profiles is always nil on the returned copy (cleared intentionally).
+//
 // Returns an error if a non-default profile is requested but not defined.
 func ResolveProfile(af *Agentfile, profileName string) (*Agentfile, error) {
 	if profileName == "" || profileName == "default" {
@@ -96,8 +101,12 @@ func deepCopySkillRefs(s *Skill) {
 // deepCopyPolicies clones a Policies value and all of its slice fields,
 // including each ToolPermission's Allow slice (which is itself a reference
 // type and must be cloned to break aliasing on element-level writes).
-// MaxTokens/MaxTurns are *int — these are not deep-copied because the pointed-to
-// int is treated as immutable by callers; if that changes, deep-copy here too.
+//
+// MaxTokens/MaxTurns are *int — these are shallow-copied (pointer is copied,
+// not the pointed-to int). Callers must treat the pointed-to int as immutable:
+// replacing the pointer (*resolved.Policies.MaxTokens = intPtr(newVal)) is safe,
+// but writing through the pointer (*resolved.Policies.MaxTokens = newVal) would
+// mutate the original Agentfile. See also: ResolveProfile caller contract.
 func deepCopyPolicies(p *Policies) *Policies {
 	if p == nil {
 		return nil

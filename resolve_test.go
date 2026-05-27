@@ -240,3 +240,25 @@ func TestResolveNodeLine_ScalarRoot(t *testing.T) {
 		t.Errorf("expected 0 for scalar root, got %d", got)
 	}
 }
+
+// TestValidHITLConditions_coversAllConstants verifies that validHITLConditions
+// contains every HITLCondition constant declared in types.go. This catches the
+// case where a new constant is added to types.go but the map is not updated.
+func TestValidHITLConditions_coversAllConstants(t *testing.T) {
+	allConstants := []HITLCondition{
+		HITLConditionAlways,
+		HITLConditionNever,
+		HITLConditionOnFailure,
+		HITLConditionSideEffects,
+		HITLConditionCostAbove,
+	}
+	for _, c := range allConstants {
+		if _, ok := validHITLConditions[c]; !ok {
+			t.Errorf("validHITLConditions is missing HITLCondition constant %q", c)
+		}
+	}
+	if len(validHITLConditions) != len(allConstants) {
+		t.Errorf("validHITLConditions has %d entries, but %d constants are declared; maps must match",
+			len(validHITLConditions), len(allConstants))
+	}
+}

@@ -368,22 +368,6 @@ func TestParse_ValidWithBuild(t *testing.T) {
 	}
 }
 
-func TestParseFile_TooLarge(t *testing.T) {
-	tmp := t.TempDir()
-	path := tmp + "/huge.yaml"
-	large := make([]byte, 1<<20+1) // 1 byte over the limit
-	if err := os.WriteFile(path, large, 0o644); err != nil {
-		t.Fatalf("writing temp file: %v", err)
-	}
-	_, err := agentfile.ParseFile(path)
-	if err == nil {
-		t.Fatal("expected error for oversized file")
-	}
-	if !strings.Contains(err.Error(), "exceeds maximum size") {
-		t.Errorf("expected 'exceeds maximum size' in error, got: %v", err)
-	}
-}
-
 // --- Size limit tests ---
 
 func TestParseFile_TooLarge_LimitReader(t *testing.T) {

@@ -198,10 +198,11 @@ func checkAllowedDomains(af *Agentfile, result *PolicyResult) {
 		return
 	}
 
-	// Build allowed domain set.
-	allowed := make(map[string]bool, len(af.Policies.AllowedDomains))
+	// Build allowed domain set. map[string]struct{} makes set semantics explicit
+	// and avoids a false-negative when the zero value (false) is looked up.
+	allowed := make(map[string]struct{}, len(af.Policies.AllowedDomains))
 	for _, d := range af.Policies.AllowedDomains {
-		allowed[strings.ToLower(d)] = true
+		allowed[strings.ToLower(d)] = struct{}{}
 	}
 
 	for i := range af.Skills {
@@ -245,15 +246,16 @@ func extractHost(source string) string {
 // The subdomain loop is O(N) over allowed_domains. In practice Agentfile
 // allowed_domains lists are small (single digits), so the linear scan is
 // acceptable. If large lists become common, consider a sorted-prefix index.
-func isDomainAllowed(host string, allowed map[string]bool) bool {
+func isDomainAllowed(host string, allowed map[string]struct{}) bool {
 	host = strings.ToLower(host)
 	// Exact match.
-	if allowed[host] {
+	if _, ok := allowed[host]; ok {
 		return true
 	}
 	// Subdomain match: check if host ends with ".domain".
+	// Keys in allowed are already lowercased at construction time.
 	for domain := range allowed {
-		if strings.HasSuffix(host, "."+strings.ToLower(domain)) {
+		if strings.HasSuffix(host, "."+domain) {
 			return true
 		}
 	}

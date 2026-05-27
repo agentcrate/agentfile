@@ -202,6 +202,12 @@ func flattenValidationErrors(err *jsonschema.ValidationError) []ValidationError 
 var printer = message.NewPrinter(language.English)
 
 func collectErrors(err *jsonschema.ValidationError, out *[]ValidationError) {
+	// Leaf nodes (no Causes) are the actionable errors — they carry the specific
+	// failing constraint (e.g., "pattern", "minLength"). Non-leaf nodes are
+	// intermediate schema combinators (allOf, anyOf, etc.) whose messages are
+	// redundant summaries of their children. If a future version of
+	// jsonschema/v6 ever emits a useful message at an intermediate node where
+	// none of its children produce errors, revisit this assumption.
 	if len(err.Causes) == 0 {
 		field := pointerToDot(err.InstanceLocation)
 		msg := err.ErrorKind.LocalizedString(printer)
@@ -228,6 +234,11 @@ func pointerToDot(parts []string) string {
 		if isNumeric(part) {
 			fmt.Fprintf(&b, "[%s]", part)
 		} else {
+			// Insert a dot separator only when the previous segment was not a
+			// numeric array index. This produces "skills[0].source" instead of
+			// "skills[0].source" vs "[0].source" for root-level arrays where i==0.
+			// A part immediately following an index gets no leading dot because
+			// the index brackets already delimit the boundary.
 			if i > 0 && !isNumeric(parts[i-1]) {
 				b.WriteByte('.')
 			}
@@ -367,14 +378,14 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 				errs = append(errs, ValidationError{
 					Field:   fmt.Sprintf("skills[%d].command", i),
 					Message: "stdio skill must have a command",
-					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].name", i)),
+					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].command", i)),
 				})
 			}
 			if len(af.Skills[i].Args) == 0 {
 				errs = append(errs, ValidationError{
 					Field:   fmt.Sprintf("skills[%d].args", i),
 					Message: "stdio skill must have non-empty args",
-					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].name", i)),
+					Line:    lineIdx.lookup(doc, fmt.Sprintf("skills[%d].args", i)),
 				})
 			}
 		case "mcp":
@@ -409,14 +420,14 @@ func normalizeYAML(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
 		m := make(map[string]any, len(val))
-		for k, v := range val {
-			m[k] = normalizeYAML(v)
+		for key, child := range val {
+			m[key] = normalizeYAML(child)
 		}
 		return m
 	case []any:
 		s := make([]any, len(val))
-		for i, v := range val {
-			s[i] = normalizeYAML(v)
+		for idx, elem := range val {
+			s[idx] = normalizeYAML(elem)
 		}
 		return s
 	default:
