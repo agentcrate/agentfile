@@ -328,14 +328,14 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 			}
 		}
 
-		// Check that human_in_the_loop tools reference declared skills.
+		// Check that human_in_the_loop skills reference declared skills.
 		for i, hitl := range af.Policies.HumanInTheLoop {
-			if _, ok := skillNames[hitl.Tool]; !ok {
-				field := fmt.Sprintf("policies.human_in_the_loop[%d].tool", i)
+			if _, ok := skillNames[hitl.Skill]; !ok {
+				field := fmt.Sprintf("policies.human_in_the_loop[%d].skill", i)
 				errs = append(errs, ValidationError{
 					Field:   field,
 					Message: "references undeclared skill",
-					Value:   fmt.Sprintf("%q", hitl.Tool),
+					Value:   fmt.Sprintf("%q", hitl.Skill),
 					Line:    lineIdx.lookup(doc, field),
 				})
 			}

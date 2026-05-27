@@ -118,16 +118,10 @@ type Policies struct {
 	MaxTurns *int `yaml:"max_turns,omitempty" json:"max_turns,omitempty" jsonschema:"minimum=1"`
 }
 
-// TODO(audit): HITLRule.Tool should be renamed to Skill (yaml/json "skill") to
-// match ToolPermission.Skill and the project's consistent use of "skill" as
-// the unit of capability. That rename is a breaking change to the YAML format
-// and the JSON schema, so it has been deferred and must be coordinated with
-// crate + crated.
-
 // HITLRule defines a human-in-the-loop approval requirement.
 type HITLRule struct {
 	// Skill name that requires human approval.
-	Tool string `yaml:"tool" json:"tool" jsonschema:"required"`
+	Skill string `yaml:"skill" json:"skill" jsonschema:"required"`
 	// Condition expression for when HITL is required (e.g., "always", "cost > 100").
 	Condition string `yaml:"condition" json:"condition" jsonschema:"required"`
 }

@@ -235,7 +235,7 @@ func TestCheckPolicies_ValidHITLConditions(t *testing.T) {
 			},
 			Policies: &agentfile.Policies{
 				HumanInTheLoop: []agentfile.HITLRule{
-					{Tool: "tool", Condition: cond},
+					{Skill: "tool", Condition: cond},
 				},
 			},
 		}
@@ -258,7 +258,7 @@ func TestCheckPolicies_EmptyHITLCondition(t *testing.T) {
 		},
 		Policies: &agentfile.Policies{
 			HumanInTheLoop: []agentfile.HITLRule{
-				{Tool: "tool", Condition: ""},
+				{Skill: "tool", Condition: ""},
 			},
 		},
 	}
@@ -290,7 +290,7 @@ func TestCheckPolicies_MultipleErrors(t *testing.T) {
 				{Skill: "fake-skill", Allow: []string{"read"}},
 			},
 			HumanInTheLoop: []agentfile.HITLRule{
-				{Tool: "also-fake", Condition: "garbage"},
+				{Skill: "also-fake", Condition: "garbage"},
 			},
 		},
 	}
@@ -370,7 +370,7 @@ func TestCheckPolicies_CostAboveNonNumeric(t *testing.T) {
 		},
 		Policies: &agentfile.Policies{
 			HumanInTheLoop: []agentfile.HITLRule{
-				{Tool: "tool", Condition: "cost_above:banana"},
+				{Skill: "tool", Condition: "cost_above:banana"},
 			},
 		},
 	}

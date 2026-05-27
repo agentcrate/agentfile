@@ -42,7 +42,7 @@
     },
     "HITLRule": {
       "properties": {
-        "tool": {
+        "skill": {
           "type": "string",
           "description": "Skill name that requires human approval."
         },
@@ -54,7 +54,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "tool",
+        "skill",
         "condition"
       ],
       "description": "HITLRule defines a human-in-the-loop approval requirement."

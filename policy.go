@@ -137,17 +137,17 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result 
 	}
 }
 
-// checkHITLRules validates human_in_the_loop rules: tool references and condition syntax.
+// checkHITLRules validates human_in_the_loop rules: skill references and condition syntax.
 func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
-		// Check tool reference.
-		if _, ok := skillNames[hitl.Tool]; !ok {
+		// Check skill reference.
+		if _, ok := skillNames[hitl.Skill]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
-				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].tool", i),
-				Message:  fmt.Sprintf("Policy references unknown skill: '%s'", hitl.Tool),
-				Value:    hitl.Tool,
+				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].skill", i),
+				Message:  fmt.Sprintf("Policy references unknown skill: '%s'", hitl.Skill),
+				Value:    hitl.Skill,
 			})
 		}
 
@@ -253,6 +253,10 @@ func extractHost(source string) string {
 
 // isDomainAllowed checks if a host matches any allowed domain.
 // Supports subdomain matching: "mcp.sec.gov" matches "sec.gov".
+//
+// The subdomain loop is O(N) over allowed_domains. In practice Agentfile
+// allowed_domains lists are small (single digits), so the linear scan is
+// acceptable. If large lists become common, consider a sorted-prefix index.
 func isDomainAllowed(host string, allowed map[string]bool) bool {
 	host = strings.ToLower(host)
 	// Exact match.
