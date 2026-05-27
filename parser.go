@@ -285,15 +285,19 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 	}
 
 	// Check that profile brain.default references a declared model name.
+	// The nil guard must wrap the map lookup: accessing profile.Brain.Default
+	// before checking profile.Brain != nil would panic on nil Brain pointers.
 	for name, profile := range af.Profiles {
-		if _, ok := modelNames[profile.Brain.Default]; profile.Brain != nil && !ok {
-			field := fmt.Sprintf("profiles.%s.brain.default", name)
-			errs = append(errs, ValidationError{
-				Field:   field,
-				Message: "references undeclared model name",
-				Value:   fmt.Sprintf("%q", profile.Brain.Default),
-				Line:    lineIdx.lookup(doc, field),
-			})
+		if profile.Brain != nil {
+			if _, ok := modelNames[profile.Brain.Default]; !ok {
+				field := fmt.Sprintf("profiles.%s.brain.default", name)
+				errs = append(errs, ValidationError{
+					Field:   field,
+					Message: "references undeclared model name",
+					Value:   fmt.Sprintf("%q", profile.Brain.Default),
+					Line:    lineIdx.lookup(doc, field),
+				})
+			}
 		}
 	}
 
