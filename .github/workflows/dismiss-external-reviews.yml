@@ -1,7 +1,7 @@
 name: Dismiss stale reviews (external PRs only)
 
 on:
-  pull_request:
+  pull_request_target:
     types: [synchronize]
 
 permissions:
