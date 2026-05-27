@@ -236,10 +236,9 @@ func pointerToDot(parts []string) string {
 		} else {
 			// Insert a dot separator only when the previous segment was not a
 			// numeric array index. This produces "skills[0].source" instead of
-			// "skills.[0].source" (extra dot before bracket). For root-level arrays
-			// where i==0, no leading dot is emitted, giving "[0].source" rather
-			// than ".skills[0].source". A part immediately following an index gets
-			// no leading dot because the index brackets already delimit the boundary.
+			// "skills[0].source" vs "[0].source" for root-level arrays where i==0.
+			// A part immediately following an index gets no leading dot because
+			// the index brackets already delimit the boundary.
 			if i > 0 && !isNumeric(parts[i-1]) {
 				b.WriteByte('.')
 			}

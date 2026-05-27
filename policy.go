@@ -243,7 +243,7 @@ func extractHost(source string) string {
 // The subdomain loop is O(N) over allowed_domains. In practice Agentfile
 // allowed_domains lists are small (single digits), so the linear scan is
 // acceptable. If large lists become common, consider a sorted-prefix index.
-func isDomainAllowed(host string, allowed map[string]bool) bool {
+func isDomainAllowed(host string, allowed map[string]struct{}) bool {
 	host = strings.ToLower(host)
 	// Exact match.
 	if _, ok := allowed[host]; ok {
