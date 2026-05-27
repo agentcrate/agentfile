@@ -74,7 +74,7 @@
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-          "description": "Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars.\nNOTE: Commas in jsonschema patterns must be escaped as \\, because the struct tag parser treats commas as delimiters."
+          "description": "Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars."
         },
         "version": {
           "type": "string",
@@ -276,7 +276,7 @@
         },
         "config": {
           "type": "object",
-          "description": "Skill-specific configuration key-value pairs.\nArbitrary key-value configuration. Server-side validation should enforce maxProperties and depth limits."
+          "description": "Arbitrary key-value configuration. Server-side validation should enforce maxProperties and depth limits."
         },
         "command": {
           "type": "string",
