@@ -35,20 +35,8 @@ func main() {
 	schema.Title = "Agentfile v1"
 	schema.Description = "Declarative specification for packaging AI agents with AgentCrate."
 
-	// Set version const (not supported via struct tags).
-	if v, ok := schema.Properties.Get("version"); ok {
-		v.Const = "1"
-	}
-
-	// Set tag item pattern on the Metadata $def.
-	if metaDef, ok := schema.Definitions["Metadata"]; ok {
-		if tags, ok := metaDef.Properties.Get("tags"); ok {
-			tags.Items = &jsonschema.Schema{
-				Type:    "string",
-				Pattern: "^[a-z0-9-]{1,50}$",
-			}
-		}
-	}
+	// Apply post-processing overrides (shared with schema_test.go via ApplySchemaOverrides).
+	agentfile.ApplySchemaOverrides(schema)
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {

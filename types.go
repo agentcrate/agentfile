@@ -1,3 +1,11 @@
+// Package agentfile provides parsing, validation, and resolution of Agentfile v1 YAML specs.
+//
+// # Struct tag escaping convention
+//
+// Commas in jsonschema struct tag patterns must be escaped as \, because the
+// invopop/jsonschema reflector uses commas as delimiters between tag options.
+// For example: `jsonschema:"pattern=^[a-z]{0\\,31}$"` encodes the regex {0,31}.
+// This convention applies to any field whose jsonschema pattern contains a comma.
 package agentfile
 
 // Agentfile represents a fully parsed Agentfile v1 specification.
@@ -24,7 +32,6 @@ type Agentfile struct {
 // Metadata contains agent identity and discoverability information.
 type Metadata struct {
 	// Agent name. Lowercase alphanumeric with dots, hyphens, underscores. Max 128 chars.
-	// NOTE: Commas in jsonschema patterns must be escaped as \, because the struct tag parser treats commas as delimiters.
 	Name string `yaml:"name" json:"name" jsonschema:"required,pattern=^[a-z0-9][a-z0-9._-]{0\\,127}$"`
 	// Semantic version (e.g., 1.0.0, 0.1.0-beta).
 	Version string `yaml:"version" json:"version" jsonschema:"required,pattern=^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[a-zA-Z0-9]+)?(\\+[a-zA-Z0-9]+)?$"`
@@ -84,7 +91,6 @@ type Skill struct {
 	Source string `yaml:"source,omitempty" json:"source,omitempty"`
 	// Human-readable description of the skill.
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-	// Skill-specific configuration key-value pairs.
 	// Arbitrary key-value configuration. Server-side validation should enforce maxProperties and depth limits.
 	Config map[string]any `yaml:"config,omitempty" json:"config,omitempty"`
 	// Binary to execute for stdio skills (e.g., "npx"). If empty, source is used as the binary path.

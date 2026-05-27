@@ -28,18 +28,8 @@ func TestSchemaUpToDate(t *testing.T) {
 	schema.Title = "Agentfile v1"
 	schema.Description = "Declarative specification for packaging AI agents with AgentCrate."
 
-	// Post-processing (must match cmd/genschema/main.go).
-	if v, ok := schema.Properties.Get("version"); ok {
-		v.Const = "1"
-	}
-	if metaDef, ok := schema.Definitions["Metadata"]; ok {
-		if tags, ok := metaDef.Properties.Get("tags"); ok {
-			tags.Items = &jsonschema.Schema{
-				Type:    "string",
-				Pattern: "^[a-z0-9-]{1,50}$",
-			}
-		}
-	}
+	// Post-processing via the shared function (same as cmd/genschema/main.go).
+	agentfile.ApplySchemaOverrides(schema)
 
 	generated, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
@@ -56,15 +46,15 @@ func TestSchemaUpToDate(t *testing.T) {
 		// Surface the first differing region so a CI failure is debuggable
 		// without re-running `make schema` locally.
 		t.Fatalf("schema/agentfile-v1.json is out of date with types.go — run `make schema` to regenerate.\nfirst-diff:\n  want: %q\n   got: %q",
-			firstDiffSnippet(want, got, 200),
-			firstDiffSnippet(got, want, 200))
+			snippetAtFirstDiff(want, got, 200),
+			snippetAtFirstDiff(got, want, 200))
 	}
 }
 
-// firstDiffSnippet returns up to maxLen characters of a starting at the first
+// snippetAtFirstDiff returns up to maxLen characters of a starting at the first
 // byte that differs from b. If a and b are identical, the empty string is
 // returned. Snippets are clipped to keep CI logs compact.
-func firstDiffSnippet(a, b string, maxLen int) string {
+func snippetAtFirstDiff(a, b string, maxLen int) string {
 	n := len(a)
 	if len(b) < n {
 		n = len(b)

@@ -368,22 +368,6 @@ func TestParse_ValidWithBuild(t *testing.T) {
 	}
 }
 
-func TestParseFile_TooLarge(t *testing.T) {
-	tmp := t.TempDir()
-	path := tmp + "/huge.yaml"
-	large := make([]byte, 1<<20+1) // 1 byte over the limit
-	if err := os.WriteFile(path, large, 0o644); err != nil {
-		t.Fatalf("writing temp file: %v", err)
-	}
-	_, err := agentfile.ParseFile(path)
-	if err == nil {
-		t.Fatal("expected error for oversized file")
-	}
-	if !strings.Contains(err.Error(), "exceeds maximum size") {
-		t.Errorf("expected 'exceeds maximum size' in error, got: %v", err)
-	}
-}
-
 // --- Size limit tests ---
 
 func TestParseFile_TooLarge_LimitReader(t *testing.T) {
@@ -522,6 +506,127 @@ func TestParse_BaseImage_RegistryWithPort(t *testing.T) {
 			}
 			if !result.IsValid() {
 				t.Fatalf("expected %s to be valid; errors: %v", image, result.Errors)
+			}
+		})
+	}
+}
+
+// TestParse_ProfileUndeclaredBrainDefault verifies that a profile referencing a
+// model name not declared in brain.models produces a semantic validation error.
+func TestParse_ProfileUndeclaredBrainDefault(t *testing.T) {
+	yaml := `
+version: "1"
+metadata:
+  name: test-agent
+  version: "1.0.0"
+  description: "Test agent with profile referencing unknown model."
+brain:
+  default: gpt
+  models:
+    - name: gpt
+      model: openai/gpt-4o
+persona:
+  system_prompt: "You are a test agent."
+profiles:
+  staging:
+    brain:
+      default: unknown-model
+`
+	result, err := agentfile.Parse([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsValid() {
+		t.Fatal("expected validation error for profile referencing undeclared model")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Field, "profiles.staging.brain.default") &&
+			strings.Contains(e.Message, "references undeclared model name") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected error about profile brain.default referencing undeclared model")
+		for _, e := range result.Errors {
+			t.Logf("  got: %s: %s", e.Field, e.Message)
+		}
+	}
+}
+
+// TestParse_StdioSkillValidation verifies error messages for stdio skill
+// missing command and args.
+func TestParse_StdioSkillValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		errContains string
+	}{
+		{
+			name: "missing_command",
+			yaml: `
+version: "1"
+metadata:
+  name: a
+  version: "1.0.0"
+  description: d
+brain:
+  default: m
+  models:
+    - name: m
+      model: openai/gpt-4o
+persona:
+  system_prompt: p
+skills:
+  - name: my-tool
+    type: stdio
+    command: ""
+    args:
+      - "--server"
+`,
+			errContains: "stdio skill must have a command",
+		},
+		{
+			name: "missing_args",
+			yaml: `
+version: "1"
+metadata:
+  name: a
+  version: "1.0.0"
+  description: d
+brain:
+  default: m
+  models:
+    - name: m
+      model: openai/gpt-4o
+persona:
+  system_prompt: p
+skills:
+  - name: my-tool
+    type: stdio
+    command: npx
+    args: []
+`,
+			errContains: "stdio skill must have non-empty args",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := agentfile.Parse([]byte(tc.yaml))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			found := false
+			for _, e := range result.Errors {
+				if strings.Contains(e.Message, tc.errContains) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected error %q but got: %v", tc.errContains, result.Errors)
 			}
 		})
 	}

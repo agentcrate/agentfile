@@ -98,10 +98,7 @@ func CheckPolicies(af *Agentfile) *PolicyResult {
 	}
 
 	// Build skill name set for reference checks.
-	skillNames := make(map[string]bool, len(af.Skills))
-	for i := range af.Skills {
-		skillNames[af.Skills[i].Name] = true
-	}
+	skillNames := buildSkillNameSet(af.Skills)
 
 	// Check tool_permissions reference declared skills.
 	checkToolPermissions(af, skillNames, result)
@@ -116,10 +113,19 @@ func CheckPolicies(af *Agentfile) *PolicyResult {
 	return result
 }
 
+// buildSkillNameSet returns a set of declared skill names for O(1) membership checks.
+func buildSkillNameSet(skills []Skill) map[string]struct{} {
+	names := make(map[string]struct{}, len(skills))
+	for i := range skills {
+		names[skills[i].Name] = struct{}{}
+	}
+	return names
+}
+
 // checkToolPermissions verifies that all tool_permissions reference declared skill names.
-func checkToolPermissions(af *Agentfile, skillNames map[string]bool, result *PolicyResult) {
+func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, tp := range af.Policies.ToolPermissions {
-		if !skillNames[tp.Skill] {
+		if _, ok := skillNames[tp.Skill]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
@@ -135,10 +141,10 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]bool, result *Pol
 // condition values. Condition values are also enforced at parse time via the
 // JSON Schema enum; this defense-in-depth catches struct values constructed
 // in Go that bypass the parser.
-func checkHITLRules(af *Agentfile, skillNames map[string]bool, result *PolicyResult) {
+func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
 		// Check skill reference.
-		if !skillNames[hitl.Skill] {
+		if _, ok := skillNames[hitl.Skill]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
@@ -192,10 +198,11 @@ func checkAllowedDomains(af *Agentfile, result *PolicyResult) {
 		return
 	}
 
-	// Build allowed domain set.
-	allowed := make(map[string]bool, len(af.Policies.AllowedDomains))
+	// Build allowed domain set. map[string]struct{} makes set semantics explicit
+	// and avoids a false-negative when the zero value (false) is looked up.
+	allowed := make(map[string]struct{}, len(af.Policies.AllowedDomains))
 	for _, d := range af.Policies.AllowedDomains {
-		allowed[strings.ToLower(d)] = true
+		allowed[strings.ToLower(d)] = struct{}{}
 	}
 
 	for i := range af.Skills {
@@ -235,15 +242,20 @@ func extractHost(source string) string {
 
 // isDomainAllowed checks if a host matches any allowed domain.
 // Supports subdomain matching: "mcp.sec.gov" matches "sec.gov".
-func isDomainAllowed(host string, allowed map[string]bool) bool {
+//
+// The subdomain loop is O(N) over allowed_domains. In practice Agentfile
+// allowed_domains lists are small (single digits), so the linear scan is
+// acceptable. If large lists become common, consider a sorted-prefix index.
+func isDomainAllowed(host string, allowed map[string]struct{}) bool {
 	host = strings.ToLower(host)
 	// Exact match.
-	if allowed[host] {
+	if _, ok := allowed[host]; ok {
 		return true
 	}
 	// Subdomain match: check if host ends with ".domain".
+	// Keys in allowed are already lowercased at construction time.
 	for domain := range allowed {
-		if strings.HasSuffix(host, "."+strings.ToLower(domain)) {
+		if strings.HasSuffix(host, "."+domain) {
 			return true
 		}
 	}
