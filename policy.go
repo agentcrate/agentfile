@@ -137,11 +137,11 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result 
 	}
 }
 
-// checkHITLRules validates human_in_the_loop rules: tool references and condition syntax.
+// checkHITLRules validates human_in_the_loop rules: skill references and condition syntax.
 func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
-		// Check tool reference.
-		if _, ok := skillNames[hitl.Tool]; !ok {
+		// Check skill reference.
+		if _, ok := skillNames[hitl.Skill]; !ok {
 			result.Findings = append(result.Findings, PolicyFinding{
 				Severity: PolicyError,
 				Rule:     "unknown-skill-ref",
@@ -243,7 +243,7 @@ func extractHost(source string) string {
 // The subdomain loop is O(N) over allowed_domains. In practice Agentfile
 // allowed_domains lists are small (single digits), so the linear scan is
 // acceptable. If large lists become common, consider a sorted-prefix index.
-func isDomainAllowed(host string, allowed map[string]struct{}) bool {
+func isDomainAllowed(host string, allowed map[string]bool) bool {
 	host = strings.ToLower(host)
 	// Exact match.
 	if _, ok := allowed[host]; ok {
