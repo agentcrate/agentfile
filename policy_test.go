@@ -220,13 +220,12 @@ func TestCheckPolicies_StdioSkipDomainCheck(t *testing.T) {
 // --- CheckPolicies: Valid HITL conditions ---
 
 func TestCheckPolicies_ValidHITLConditions(t *testing.T) {
-	conditions := []string{
-		"always",
-		"never",
-		"on_failure",
-		"side_effects",
-		"cost_above:100",
-		"cost_above:0.5",
+	conditions := []agentfile.HITLCondition{
+		agentfile.HITLConditionAlways,
+		agentfile.HITLConditionNever,
+		agentfile.HITLConditionOnFailure,
+		agentfile.HITLConditionSideEffects,
+		agentfile.HITLConditionCostAbove,
 	}
 	for _, cond := range conditions {
 		af := &agentfile.Agentfile{
@@ -363,28 +362,34 @@ func TestCheckPolicies_EmptyPolicies(t *testing.T) {
 	}
 }
 
-func TestCheckPolicies_CostAboveNonNumeric(t *testing.T) {
+// The condition field is a closed enum after the breaking rename, so any
+// trailing-parameter syntax like "cost_above:100" is no longer recognized —
+// it is reported as an unknown HITL condition.
+func TestCheckPolicies_RejectsParameterizedCondition(t *testing.T) {
 	af := &agentfile.Agentfile{
 		Skills: []agentfile.Skill{
 			{Name: "tool", Type: "mcp", Source: "cratehub.ai/tools/test"},
 		},
 		Policies: &agentfile.Policies{
 			HumanInTheLoop: []agentfile.HITLRule{
-				{Skill: "tool", Condition: "cost_above:banana"},
+				{Skill: "tool", Condition: "cost_above:100"},
 			},
 		},
 	}
 	pr := agentfile.CheckPolicies(af)
 	if pr.Valid {
-		t.Fatal("expected invalid for non-numeric cost_above")
+		t.Fatal("expected invalid for parameterized cost_above syntax")
 	}
 	found := false
 	for _, e := range pr.Errors() {
-		if strings.Contains(e.Message, "must be numeric") {
+		if e.Rule == "invalid-hitl-condition" && strings.Contains(e.Message, "unknown HITL condition") {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected error about non-numeric cost_above threshold")
+		t.Error("expected 'unknown HITL condition' error for parameterized syntax")
+		for _, e := range pr.Errors() {
+			t.Logf("  %s: %s", e.Field, e.Message)
+		}
 	}
 }

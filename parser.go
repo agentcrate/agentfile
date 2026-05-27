@@ -332,7 +332,7 @@ func validateSemantics(af *Agentfile, doc *yaml.Node, lineIdx *lineIndex) []Vali
 			}
 		}
 
-		// Check that human_in_the_loop skills reference declared skills.
+		// Check that human_in_the_loop skill refs are declared.
 		for i, hitl := range af.Policies.HumanInTheLoop {
 			if _, ok := skillNames[hitl.Skill]; !ok {
 				field := fmt.Sprintf("policies.human_in_the_loop[%d].skill", i)

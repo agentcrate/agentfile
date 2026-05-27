@@ -30,7 +30,10 @@
       "properties": {
         "base_image": {
           "type": "string",
-          "description": "Override the default base image (agentcrate/base:latest). Required when\nthe build section is present.\nDocker image reference. Server-side validation should enforce format (registry/image:tag) and max length."
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^([a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?/)?[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[a-zA-Z0-9._-]+)?(@sha256:[a-f0-9]{64})?$",
+          "description": "Override the default base image (agentcrate/base:latest). Required when\nthe build section is present.\n\nFormat: optional registry host, one or more path segments, optional \":tag\"\nand/or \"@sha256:\u003cdigest\u003e\". Each path segment is lowercase alphanumeric with\ninternal '.', '_', or '-' separators. Tags allow upper-case letters,\ndigits, and '._-'. Digests are 64 hex chars (sha256). Max length 255.\n\nExamples that match:\n\n\tagentcrate/base:latest\n\tcustom-registry.io/agent-base:1.2.0\n\tghcr.io/org/image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n\tlocalhost:5000/foo:tag\n\tregistry.example.com:5000/path/image:tag"
         }
       },
       "additionalProperties": false,
@@ -44,11 +47,18 @@
       "properties": {
         "skill": {
           "type": "string",
-          "description": "Skill name that requires human approval."
+          "description": "Skill name that requires human approval. Must match a declared skill."
         },
         "condition": {
           "type": "string",
-          "description": "Condition expression for when HITL is required (e.g., \"always\", \"cost \u003e 100\")."
+          "enum": [
+            "always",
+            "never",
+            "on_failure",
+            "side_effects",
+            "cost_above"
+          ],
+          "description": "Condition under which human approval is required. Closed enum — see\nHITLCondition for accepted values."
         }
       },
       "additionalProperties": false,

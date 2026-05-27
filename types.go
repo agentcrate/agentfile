@@ -100,8 +100,20 @@ type Skill struct {
 type Build struct {
 	// Override the default base image (agentcrate/base:latest). Required when
 	// the build section is present.
-	// Docker image reference. Server-side validation should enforce format (registry/image:tag) and max length.
-	BaseImage string `yaml:"base_image" json:"base_image"`
+	//
+	// Format: optional registry host, one or more path segments, optional ":tag"
+	// and/or "@sha256:<digest>". Each path segment is lowercase alphanumeric with
+	// internal '.', '_', or '-' separators. Tags allow upper-case letters,
+	// digits, and '._-'. Digests are 64 hex chars (sha256). Max length 255.
+	//
+	// Examples that match:
+	//
+	//	agentcrate/base:latest
+	//	custom-registry.io/agent-base:1.2.0
+	//	ghcr.io/org/image@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+	//	localhost:5000/foo:tag
+	//	registry.example.com:5000/path/image:tag
+	BaseImage string `yaml:"base_image" json:"base_image" jsonschema:"required,minLength=1,maxLength=255,pattern=^([a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?/)?[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*(:[a-zA-Z0-9._-]+)?(@sha256:[a-f0-9]{64})?$"`
 }
 
 // Policies defines security constraints and governance rules.
@@ -120,30 +132,28 @@ type Policies struct {
 
 // HITLRule defines a human-in-the-loop approval requirement.
 type HITLRule struct {
-	// Skill name that requires human approval.
+	// Skill name that requires human approval. Must match a declared skill.
 	Skill string `yaml:"skill" json:"skill" jsonschema:"required"`
-	// Condition expression for when HITL is required (e.g., "always", "cost > 100").
-	Condition string `yaml:"condition" json:"condition" jsonschema:"required"`
+	// Condition under which human approval is required. Closed enum — see
+	// HITLCondition for accepted values.
+	Condition HITLCondition `yaml:"condition" json:"condition" jsonschema:"required,enum=always,enum=never,enum=on_failure,enum=side_effects,enum=cost_above"`
 }
 
-// HITL condition sentinels. These are the keyword forms accepted by
-// CheckPolicies and validateHITLCondition; they are exported so downstream
-// consumers (crate, crated) can reference them by name instead of duplicating
-// string literals.
-//
-// Parameterized forms append ":<arg>" after the keyword, e.g.,
-// HITLConditionCostAbove + ":100" → "cost_above:100".
-//
-// The JSON Schema deliberately leaves HITLRule.Condition free-form for now —
-// tightening it (e.g., minLength, or an enum/pattern union) would be a
-// schema-level change and is tracked as a follow-up so downstream parsers
-// can migrate without coordinated breakage.
+// HITLCondition is the closed enum of conditions under which a HITL rule
+// requires human approval. Defining the type at the schema level lets
+// invalid values fail the parse phase rather than the policy phase, and
+// gives downstream consumers (crate, crated) a typed identifier.
+type HITLCondition string
+
+// HITL condition sentinels. Exported so downstream consumers reference them
+// by name instead of duplicating string literals; the JSON Schema enum is
+// derived from these via the `enum=...` struct tag on HITLRule.Condition.
 const (
-	HITLConditionAlways      = "always"
-	HITLConditionNever       = "never"
-	HITLConditionOnFailure   = "on_failure"
-	HITLConditionSideEffects = "side_effects"
-	HITLConditionCostAbove   = "cost_above"
+	HITLConditionAlways      HITLCondition = "always"
+	HITLConditionNever       HITLCondition = "never"
+	HITLConditionOnFailure   HITLCondition = "on_failure"
+	HITLConditionSideEffects HITLCondition = "side_effects"
+	HITLConditionCostAbove   HITLCondition = "cost_above"
 )
 
 // ToolPermission defines fine-grained permissions for a skill.
