@@ -137,10 +137,7 @@ func checkToolPermissions(af *Agentfile, skillNames map[string]struct{}, result 
 	}
 }
 
-// checkHITLRules validates human_in_the_loop rules: skill references and
-// condition values. Condition values are also enforced at parse time via the
-// JSON Schema enum; this defense-in-depth catches struct values constructed
-// in Go that bypass the parser.
+// checkHITLRules validates human_in_the_loop rules: skill references and condition syntax.
 func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *PolicyResult) {
 	for i, hitl := range af.Policies.HumanInTheLoop {
 		// Check skill reference.
@@ -161,7 +158,7 @@ func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *Polic
 				Rule:     "invalid-hitl-condition",
 				Field:    fmt.Sprintf("policies.human_in_the_loop[%d].condition", i),
 				Message:  err.Error(),
-				Value:    string(hitl.Condition),
+				Value:    hitl.Condition,
 			})
 		}
 	}
@@ -171,13 +168,13 @@ func checkHITLRules(af *Agentfile, skillNames map[string]struct{}, result *Polic
 // recognized keywords. The schema enforces the same enum at parse time, but
 // this function exists so an Agentfile constructed directly in Go (bypassing
 // parse) is still validated.
-func validateHITLCondition(condition HITLCondition) error {
+func validateHITLCondition(condition string) error {
 	if condition == "" {
 		return fmt.Errorf("HITL condition must not be empty")
 	}
-	if _, ok := validHITLConditions[condition]; !ok {
+	if _, ok := validHITLConditions[HITLCondition(condition)]; !ok {
 		return fmt.Errorf("unknown HITL condition: %q (valid: %s)",
-			string(condition), validHITLKeywords())
+			condition, validHITLKeywords())
 	}
 	return nil
 }

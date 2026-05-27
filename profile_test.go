@@ -100,7 +100,7 @@ func TestResolveProfile_ProfilePoliciesDeepCopied(t *testing.T) {
 	prodPolicies := &Policies{
 		AllowedDomains:  []string{"prod.example.com"},
 		ToolPermissions: []ToolPermission{{Skill: "web-search", Allow: []string{"read"}}},
-		HumanInTheLoop:  []HITLRule{{Skill: "web-search", Condition: HITLConditionAlways}},
+		HumanInTheLoop:  []HITLRule{{Skill: "web-search", Condition: "always"}},
 	}
 	af.Profiles["prod"] = Profile{
 		Brain:    &ProfileBrain{Default: "gpt"},
@@ -306,7 +306,7 @@ func TestResolveProfile_DeepCopySlices(t *testing.T) {
 			{Skill: "web-search", Allow: []string{"read"}},
 		},
 		HumanInTheLoop: []HITLRule{
-			{Skill: "web-search", Condition: HITLConditionAlways},
+			{Skill: "web-search", Condition: "always"},
 		},
 	}
 
