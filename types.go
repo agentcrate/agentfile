@@ -138,11 +138,10 @@ type Policies struct {
 
 // HITLRule defines a human-in-the-loop approval requirement.
 type HITLRule struct {
-	// Skill name that requires human approval. Must match a declared skill.
+	// Skill name that requires human approval.
 	Skill string `yaml:"skill" json:"skill" jsonschema:"required"`
-	// Condition under which human approval is required. Closed enum — see
-	// HITLCondition for accepted values.
-	Condition HITLCondition `yaml:"condition" json:"condition" jsonschema:"required,enum=always,enum=never,enum=on_failure,enum=side_effects,enum=cost_above"`
+	// Condition expression for when HITL is required (e.g., "always", "cost > 100").
+	Condition string `yaml:"condition" json:"condition" jsonschema:"required"`
 }
 
 // HITLCondition is the closed enum of conditions under which a HITL rule
