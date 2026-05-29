@@ -1,5 +1,9 @@
 name: Dismiss stale reviews (external PRs only)
 
+# Dismiss approving reviews when a new commit is pushed by a user who is
+# NOT a member of the org. PRs touched by org members never lose their
+# approvals — the author of the PR is irrelevant; only who pushed matters.
+
 on:
   pull_request:
     types: [synchronize]
@@ -10,18 +14,41 @@ permissions:
 jobs:
   dismiss:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.author_association != 'MEMBER' && github.event.pull_request.author_association != 'OWNER' && github.event.pull_request.author_association != 'COLLABORATOR'
     steps:
-      - name: Dismiss stale reviews
+      - name: Dismiss approvals only when pusher is external
         uses: actions/github-script@v9
         with:
           script: |
-            const reviews = await github.rest.pulls.listReviews({
+            const actor = context.payload.sender.login;
+            const org = context.repo.owner;
+
+            // Public membership endpoint is unauthenticated and returns 204
+            // for public members, 404 otherwise. Fall through to the
+            // authenticated check (needs read:org on GITHUB_TOKEN) for users
+            // whose membership is private.
+            let isMember = false;
+            try {
+              await github.request('GET /orgs/{org}/public_members/{username}', { org, username: actor });
+              isMember = true;
+            } catch (_) {
+              try {
+                await github.rest.orgs.checkMembershipForUser({ org, username: actor });
+                isMember = true;
+              } catch (__) {}
+            }
+
+            if (isMember) {
+              core.info(`${actor} is a member of ${org} — keeping reviews.`);
+              return;
+            }
+
+            core.info(`${actor} is external — dismissing approved reviews.`);
+            const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
             });
-            for (const review of reviews.data) {
+            for (const review of reviews) {
               if (review.state === 'APPROVED') {
                 await github.rest.pulls.dismissReview({
                   owner: context.repo.owner,
