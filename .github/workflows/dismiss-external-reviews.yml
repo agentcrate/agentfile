@@ -47,7 +47,12 @@ jobs:
               });
               permission = data.permission;
             } catch (e) {
-              core.info(`Permission lookup failed for ${actor}: ${e.message}`);
+              if (e.status === 404) {
+                core.info(`${actor} is not a collaborator (404) — treating as external.`);
+              } else {
+                core.setFailed(`Permission lookup failed for ${actor}: ${e.message}`);
+                return;
+              }
             }
 
             const internal = permission === "admin" || permission === "write" || permission === "maintain";
