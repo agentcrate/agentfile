@@ -3,6 +3,20 @@ name: Dismiss stale reviews (external PRs only)
 # Dismiss approving reviews when a new commit is pushed by a user who is
 # NOT a member of the org. PRs touched by org members never lose their
 # approvals — the author of the PR is irrelevant; only who pushed matters.
+#
+# Membership check uses the repo-collaborator permission endpoint, NOT
+# the org-membership endpoint:
+#
+#   - `GET /orgs/{org}/members/{username}` returns 404 to the workflow's
+#     GITHUB_TOKEN (github-actions[bot]) for members whose org membership
+#     visibility is private — even when the user is genuinely a member.
+#     The previous version of this workflow used that endpoint and silently
+#     dismissed approvals for every org member with private membership.
+#
+#   - `GET /repos/{owner}/{repo}/collaborators/{username}/permission`
+#     returns the user's repo permission regardless of membership privacy
+#     and works with the default GITHUB_TOKEN. Anyone with `write` or
+#     `admin` here is internal to the org.
 
 on:
   pull_request:
@@ -20,42 +34,48 @@ jobs:
         with:
           script: |
             const actor = context.payload.sender.login;
-            const org = context.repo.owner;
 
-            // Public membership endpoint is unauthenticated and returns 204
-            // for public members, 404 otherwise. Fall through to the
-            // authenticated check (needs read:org on GITHUB_TOKEN) for users
-            // whose membership is private.
-            let isMember = false;
+            // Probe the user's effective permission on this repo.
+            // 200 → admin/write/maintain/triage/read; treat write+
+            // as internal. 404 → not a collaborator → external.
+            let permission = "none";
             try {
-              await github.request('GET /orgs/{org}/public_members/{username}', { org, username: actor });
-              isMember = true;
-            } catch (_) {
-              try {
-                await github.rest.orgs.checkMembershipForUser({ org, username: actor });
-                isMember = true;
-              } catch (__) {}
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: actor,
+              });
+              permission = data.permission;
+            } catch (e) {
+              if (e.status === 404) {
+                core.info(`${actor} is not a collaborator (404) — treating as external.`);
+              } else {
+                core.setFailed(`Permission lookup failed for ${actor}: ${e.message}`);
+                return;
+              }
             }
 
-            if (isMember) {
-              core.info(`${actor} is a member of ${org} — keeping reviews.`);
+            const internal = permission === "admin" || permission === "write" || permission === "maintain";
+            if (internal) {
+              core.info(`${actor} has ${permission} access — keeping reviews.`);
               return;
             }
 
-            core.info(`${actor} is external — dismissing approved reviews.`);
+            core.info(`${actor} is external (permission=${permission}) — dismissing approved reviews.`);
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
             });
             for (const review of reviews) {
-              if (review.state === 'APPROVED') {
+              if (review.state === "APPROVED") {
                 await github.rest.pulls.dismissReview({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: context.payload.pull_request.number,
                   review_id: review.id,
-                  message: 'New commits pushed by external contributor — re-review required.',
+                  message: "Re-review required: a new commit was pushed by an external contributor.",
                 });
+                core.info(`Dismissed approval by ${review.user.login}.`);
               }
             }
